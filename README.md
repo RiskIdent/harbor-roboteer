@@ -67,3 +67,33 @@ sequenceDiagram
         Harbor-->>harbor-roboteer:
     end
 ```
+
+## Development
+
+### mise
+
+Mise (aka "mise-en-place") is used to manage tooling to make sure we have the
+same version of everything.
+
+Recommended to set up automatic activation:
+
+```bash
+# for bash
+echo 'eval "$(mise activate bash)"' >> ~/.bashrc
+# for zsh
+echo 'eval "$(mise activate zsh)"' >> ~/.zshrc
+# for fish
+echo 'mise activate fish | source' >> ~/.config/fish/config.fish
+```
+
+### pre-commit via hk
+
+Recommended to use our pre-commit hooks, provided via [hk](https://hk.jdx.dev/)
+
+```bash
+# if using Git 2.54+ (check with "git --version"), then it's recommended to install globally
+mise run pre-commit:install:global
+
+# otherwise:
+mise run pre-commit:install
+```

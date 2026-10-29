@@ -1,0 +1,40 @@
+[tools]
+actionlint = "1.7.12"
+"gitlab:greut/eclint" = "v0.5.2"
+go = "1.27.3"
+golangci-lint = "2.15.0"
+hk = "2.7.0"
+pkl = "0.32.1"
+rumdl = "v0.3.0"
+shellcheck = "0.11.0"
+shfmt = "3.14.1"
+typos = "1.51.1"
+zizmor = "1.31.1"
+
+[tasks.pre-commit]
+description = "Runs the hk pre-commit checks, as if you were creating a Git commit"
+run = "hk run pre-commit"
+
+[tasks."pre-commit:install"]
+description = "Installs hk Git pre-commit hook to this repository"
+run = "hk install --mise"
+
+[tasks."pre-commit:install:global"]
+description = "Installs hk Git pre-commit hook globally in your gitconfig (requires Git 2.54+)"
+run = "hk install --global --mise"
+
+[tasks."pre-commit:uninstall"]
+description = "Uninstall the hk Git pre-commit hook from this repository"
+run = "hk uninstall"
+
+[tasks."pre-commit:uninstall:global"]
+description = "Uninstalls hk Git pre-commit hook globally from your gitconfig"
+run = "hk uninstall --global"
+
+[settings]
+pin = true      # use versions instead of "latest" when adding new tools
+lockfile = true
+
+[[hooks.enter]]
+run = 'mise install'
+

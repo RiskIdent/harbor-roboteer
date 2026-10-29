@@ -1,0 +1,37 @@
+version: "2"
+
+linters:
+  enable:
+    - noctx
+    - nolintlint
+    - nosprintfhostport
+    - promlinter
+    - sloglint
+    - spancheck
+  disable:
+    - ineffassign
+
+  settings:
+    staticcheck:
+      checks:
+        - all
+        - -ST1000
+        - -ST1003
+        - -ST1016
+        - -ST1020
+        - -ST1021
+        - -ST1022
+
+    sloglint:
+      no-global: all
+      context: all
+      static-msg: true
+      forbidden-keys:
+        - err # should use "error" instead of "err"
+        - msg # can be conused with log message
+        - message # can be conused with log message
+        - time # can be conused with log time
+        - level # can be confused with log level
+        - source # can be confused with caller site
+      key-naming-case: camel
+

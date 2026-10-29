@@ -1,0 +1,40 @@
+amends "package://github.com/jdx/hk/releases/download/v2.2.0/hk@2.2.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.2.0/hk@2.2.0#/Builtins.pkl"
+
+steps {
+    // Disallow file names of two files only differing in casing
+    // (e.g no "HELLO.TXT" and "hello.txt" in the same directory)
+    ["hk/check-case-conflict"] = Builtins.check_case_conflict
+    // Any file with "chmod +x" must have a shebang (e.g "#!/usr/bin/env bash")
+    ["hk/check-executables-have-shebangs"] = Builtins.check_executables_have_shebangs
+    // Disallow broken symlinks
+    ["hk/check-symlinks"] = Builtins.check_symlinks
+    // Detect private keys in files
+    ["hk/detect-private-key"] = Builtins.detect_private_key
+    // Look for and fix missing final newlines
+    ["hk/newlines"] = Builtins.newlines
+    // Remove BOMs from UTF-8 files
+    ["hk/byte-order-marker"] = Builtins.byte_order_marker
+    // Disallow committing to main branch
+    ["hk/no-commit-to-branch"] = (Builtins.no_commit_to_branch) {
+      check = "hk util no-commit-to-branch --branch main"
+    }
+    // Remove trailing whitespace
+    ["hk/trailing-whitespace"] = Builtins.trailing_whitespace
+
+    // Linters
+    ["actionlint"] = Builtins.actionlint
+    ["mise"] = Builtins.mise
+    ["rumdl"] = Builtins.rumdl
+    ["typos"] = Builtins.typos
+    ["zizmor"] = Builtins.zizmor
+}
+
+hooks {
+  ["commit-msg"] {
+    steps {
+      // Verify commit message matches conventional commits formatting
+      ["hk/check-conventional-commit"] = Builtins.check_conventional_commit
+    }
+  }
+}
