@@ -243,6 +243,15 @@ jobs:
           install_args: go
           cache_key_prefix: mise-v1-go-test
 
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
       - name: Run tests
         if: steps.changed-files.outputs.any_changed == 'true'
         run: go test ./...
@@ -293,6 +302,17 @@ jobs:
       - name: Run golangci-lint
         if: steps.changed-files.outputs.any_changed == 'true'
         run: golangci-lint run --fix --output.text.colors=true
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-golangci-lint-
+            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+            ${{ runner.os }}-go-
 
       - uses: reviewdog/action-suggester@ac5ce6d94e35c00530447dc63c271e38e4fd36c6 # v1.26.3
         if: always()
