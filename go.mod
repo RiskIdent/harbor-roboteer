@@ -21,7 +21,6 @@ require (
 	github.com/go-openapi/strfmt v0.21.0 // indirect
 	github.com/go-openapi/swag v0.19.15 // indirect
 	github.com/go-openapi/validate v0.20.3 // indirect
-	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
@@ -29,8 +28,8 @@ require (
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	go.mongodb.org/mongo-driver v1.7.3 // indirect
+	go.mongodb.org/mongo-driver v1.17.7 // indirect
 	golang.org/x/net v0.0.0-20210902165921-8d991716f632 // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/text v0.17.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
