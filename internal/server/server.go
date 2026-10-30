@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -20,11 +21,11 @@ type IServer interface {
 	Start(ctx context.Context) error
 }
 
-func NewServer(ctx context.Context, port string, log *slog.Logger) *Server {
+func NewServer(ctx context.Context, port string, log *slog.Logger) (*Server, error) {
 	r := http.NewServeMux()
 	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", ":"+port)
 	if err != nil {
-		log.ErrorContext(ctx, "couldn't create the listener", slog.String("port", port), slog.Any("error", err))
+		return &Server{}, fmt.Errorf("couldn't create the listener with port %s, error: %w", port, err)
 	}
 	s := &Server{
 		router: r,
@@ -35,7 +36,7 @@ func NewServer(ctx context.Context, port string, log *slog.Logger) *Server {
 		log:      log,
 	}
 	s.registerHandlers()
-	return s
+	return s, nil
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -50,6 +51,7 @@ func (s *Server) Start(ctx context.Context) error {
 		shutdownErr <- s.server.Shutdown(shutdownCtx)
 	}()
 
+	s.log.Info("starting server", slog.String("addr", s.listener.Addr().String()))
 	if err := s.server.Serve(s.listener); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

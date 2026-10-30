@@ -27,7 +27,10 @@ to quickly create a Cobra application.`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		ctx := cmd.Context()
 		log := logger.New(logLevel, logFormat)
-		s := server.NewServer(ctx, port, log)
+		s, err := server.NewServer(ctx, port, log)
+		if err != nil {
+			return err
+		}
 
 		if err := s.Start(ctx); err != nil {
 			return fmt.Errorf("run server: %w", err)
