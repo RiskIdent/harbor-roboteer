@@ -10,7 +10,10 @@ import (
 )
 
 func TestStartWaitsForInFlightRequests(t *testing.T) {
-	s := NewServer("0", slog.New(slog.DiscardHandler))
+	s, err := NewServer(t.Context(), "0", slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	started := make(chan struct{})
 	var finished atomic.Bool
