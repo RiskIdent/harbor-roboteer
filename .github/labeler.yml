@@ -1,0 +1,65 @@
+# Config for https://github.com/actions/labeler
+
+go:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.go"
+          - "**/go.mod"
+          - "**/go.sum"
+          - "**/go.work"
+
+docker:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/.dockerignore"
+          - "**/*.Dockerfile"
+          - "**/Dockerfile"
+          - "**/docker-compose.yml"
+          - "**/docker-compose.yaml"
+          - "**/.containerignore"
+          - "**/*.Containerfile"
+          - "**/Containerfile"
+          - "**/compose.yml"
+          - "**/compose.yaml"
+
+javascript:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.js"
+          - "**/*.cjs"
+          - "**/*.mjs"
+          - "**/*.ts"
+          - "**/package.json"
+          - "**/package-lock.json"
+
+bash:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.bash"
+          - "**/*.sh"
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/go.mod"
+          - "**/go.sum"
+          - "**/poetry.lock"
+          - "**/poetry.yaml"
+          - "**/package.json"
+          - "**/package-lock.json"
+          - "**/charts/**/*.tgz"
+
+github_actions:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/*"
+          - ".github/actions/**"
+          - ".github/scripts/**"
+          - ".github/dependabot.yml"
+          - ".github/labeler.yml"
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+          - "docs/**"
