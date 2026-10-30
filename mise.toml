@@ -2,6 +2,7 @@
 actionlint = "1.7.12"
 "gitlab:greut/eclint" = "v0.5.2"
 go = "1.27.3"
+"go:golang.org/x/vuln/cmd/govulncheck" = "1.9.0"
 golangci-lint = "2.15.0"
 hk = "2.7.0"
 pkl = "0.32.1"
@@ -37,4 +38,3 @@ lockfile = true
 
 [[hooks.enter]]
 run = 'mise install'
-
