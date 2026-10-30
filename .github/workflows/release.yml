@@ -23,6 +23,9 @@ jobs:
     permissions:
       contents: write # for uploading binaries to release
       packages: write # for ghcr.io
+      attestations: write # for signing
+      artifact-metadata: write # for signing
+      id-token: write # for using GitHub IdP (when signing)
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -84,6 +87,14 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attest release artifacts
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            dist/harbor-roboteer_*.tar.gz
+            dist/harbor-roboteer_*.zip
+            dist/harbor-roboteer_*/*
 
       - name: Cleanup credentials
         if: always()
