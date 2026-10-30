@@ -32,7 +32,7 @@ Clean up robot account at the end of workflow.
 ```bash
 curl -X DELETE https://harbor-roboteer.example.com/token \
   --url-query username='robot$github-actions+my-repo' \
-  -H "Authorization: Token $DELETE_TOKEN"
+  -H "Authorization: Bearer $DELETE_TOKEN"
 ```
 
 Response `201 Created`
