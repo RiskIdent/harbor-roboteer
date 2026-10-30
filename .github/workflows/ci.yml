@@ -106,7 +106,7 @@ jobs:
 
       - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
-          install_args: eclint
+          install_args: gitlab:greut/eclint
           cache_key_prefix: mise-v1-eclint
 
       - name: Log eclint version
@@ -250,6 +250,12 @@ jobs:
 
   golangci-lint:
     runs-on: ubuntu-latest
+    permissions:
+      # https://github.com/reviewdog/action-suggester?tab=readme-ov-file#required-permissions
+      contents: read
+      checks: write
+      issues: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -285,7 +291,13 @@ jobs:
 
       - name: Run golangci-lint
         if: steps.changed-files.outputs.any_changed == 'true'
-        run: golangci-lint run
+        run: golangci-lint run --fix --output.text.colors=true
+
+      - uses: reviewdog/action-suggester@ac5ce6d94e35c00530447dc63c271e38e4fd36c6 # v1.26.3
+        if: always()
+        with:
+          tool_name: golangci-lint
+          fail_level: error
 
   # ----------------- ( job separator ) -----------------
 
@@ -376,9 +388,9 @@ jobs:
       - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
-          install: false
-          cache_key_prefix: mise-v1-mise
+          install_args: hk
+          cache_key_prefix: mise-v1-hk
 
       - name: Validate hk.pkl
         if: steps.changed-files.outputs.any_changed == 'true'
-        run: hk validate
+        run: mise x hk -- hk validate
