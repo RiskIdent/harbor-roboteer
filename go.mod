@@ -29,7 +29,7 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	go.mongodb.org/mongo-driver v1.17.7 // indirect
-	golang.org/x/net v0.0.0-20210902165921-8d991716f632 // indirect
-	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
