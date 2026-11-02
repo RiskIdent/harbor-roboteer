@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
+	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
 	"github.com/RiskIdent/harbor-roboteer/internal/logger"
 	"github.com/RiskIdent/harbor-roboteer/internal/server"
 	"github.com/spf13/cobra"
@@ -12,6 +14,10 @@ var (
 	port      string
 	logLevel  string
 	logFormat string
+
+	harborURL      string
+	harborUsername string
+	harborPassword string
 )
 
 // serveCmd represents the serve command
@@ -27,7 +33,11 @@ to quickly create a Cobra application.`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		ctx := cmd.Context()
 		log := logger.New(logLevel, logFormat)
-		s, err := server.NewServer(ctx, port, log)
+		hc, err := harbor.New(harborURL, harborUsername, harborPassword)
+		if err != nil {
+			return err
+		}
+		s, err := server.NewServer(ctx, port, log, hc)
 		if err != nil {
 			return err
 		}
@@ -47,4 +57,7 @@ func init() {
 	serveCmd.Flags().StringVarP(&port, "port", "p", "8080", "server port")
 	serveCmd.Flags().StringVarP(&logLevel, "log-level", "", "info", "log level")
 	serveCmd.Flags().StringVarP(&logFormat, "log-format", "", "json", "log format")
+	serveCmd.Flags().StringVar(&harborURL, "harbor-url", os.Getenv("HARBOR_URL"), "Harbor base URL (env HARBOR_URL)")
+	serveCmd.Flags().StringVar(&harborUsername, "harbor-username", os.Getenv("HARBOR_USERNAME"), "Harbor admin or robot username (env HARBOR_USERNAME)")
+	serveCmd.Flags().StringVar(&harborPassword, "harbor-password", os.Getenv("HARBOR_PASSWORD"), "Harbor password, prefer the env var (env HARBOR_PASSWORD)")
 }

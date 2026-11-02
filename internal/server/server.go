@@ -8,6 +8,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
 )
 
 type Server struct {
@@ -15,13 +17,14 @@ type Server struct {
 	server   *http.Server
 	listener net.Listener
 	log      *slog.Logger
+	harbor   *harbor.Client
 }
 
 type IServer interface {
 	Start(ctx context.Context) error
 }
 
-func NewServer(ctx context.Context, port string, log *slog.Logger) (*Server, error) {
+func NewServer(ctx context.Context, port string, log *slog.Logger, hc *harbor.Client) (*Server, error) {
 	r := http.NewServeMux()
 	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", ":"+port)
 	if err != nil {
@@ -34,6 +37,7 @@ func NewServer(ctx context.Context, port string, log *slog.Logger) (*Server, err
 		},
 		listener: l,
 		log:      log,
+		harbor:   hc,
 	}
 	s.registerHandlers()
 	return s, nil
