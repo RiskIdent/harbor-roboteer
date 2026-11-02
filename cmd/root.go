@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 
+	"github.com/RiskIdent/harbor-roboteer/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -22,7 +23,8 @@ to quickly create a Cobra application.`,
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute(ctx context.Context) {
+func Execute(ctx context.Context, appVersion string) {
+	rootCmd.Version = version.Get(appVersion)
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		os.Exit(1)
 	}

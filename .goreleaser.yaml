@@ -1,0 +1,86 @@
+# Make sure to check the documentation at https://goreleaser.com
+
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0
+
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: harbor-roboteer
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: .
+    ldflags:
+      - >-
+        -s
+        -w
+        -X main.version={{.Tag}}
+    ignore:
+      - goos: windows
+        goarch: "arm64"
+
+kos:
+  - id: harbor-roboteer
+    build: harbor-roboteer
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    repositories: [ghcr.io/riskident]
+    base_import_paths: true
+    labels:
+      org.opencontainers.image.title: Harbor roboteer
+      org.opencontainers.image.source: https://github.com/RiskIdent/harbor-roboteer
+      org.opencontainers.image.authors: RISK IDENT
+      org.opencontainers.image.url: https://github.com/RiskIdent/harbor-roboteer
+      org.opencontainers.image.vendor: RISKIDENT
+      org.opencontainers.image.version: "{{.Tag}}"
+      org.opencontainers.image.revision: "{{.FullCommit}}"
+      org.opencontainers.image.created: "{{.CommitDate}}"
+    tags:
+      - latest
+      - "{{.Tag}}"
+      - "{{if not .Prerelease}}v{{.Major}}.{{.Minor}}{{end}}"
+      - "{{if not .Prerelease}}v{{.Major}}{{end}}"
+    sbom: spdx
+
+archives:
+  - id: harbor-roboteer
+    ids: [harbor-roboteer]
+    formats: [tar.gz]
+    # this name template makes the OS and Arch compatible with the results of `uname`.
+    name_template: >-
+      harbor-roboteer_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+release:
+  use_existing_draft: true
+
+  # Treat v0.3.0-rc.1 automatically as pre-release
+  prerelease: auto
+
+changelog:
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
