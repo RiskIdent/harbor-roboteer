@@ -87,8 +87,8 @@ func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
-	token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if !ok || token == "" {
+	token, ok := bearerToken(r)
+	if !ok {
 		w.Header().Set("WWW-Authenticate", "Bearer")
 		http.Error(w, "Authorization: Bearer <delete token> header is required", http.StatusUnauthorized)
 		return
@@ -129,4 +129,13 @@ func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func bearerToken(r *http.Request) (string, bool) {
+	scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
+	if !ok || !strings.EqualFold(scheme, "Bearer") {
+		return "", false
+	}
+	token = strings.TrimLeft(token, " ")
+	return token, token != ""
 }
