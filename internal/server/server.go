@@ -51,7 +51,7 @@ func (s *Server) Start(ctx context.Context) error {
 		shutdownErr <- s.server.Shutdown(shutdownCtx)
 	}()
 
-	s.log.Info("starting server", slog.String("addr", s.listener.Addr().String()))
+	s.log.InfoContext(ctx, "starting server", slog.String("addr", s.listener.Addr().String()))
 	if err := s.server.Serve(s.listener); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

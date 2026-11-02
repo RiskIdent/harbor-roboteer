@@ -1,0 +1,17 @@
+name: "Pull Request Labeler"
+on:
+  # Using 'pull_request_target' is considered harmful, but only when you
+  # checkout the forked target in the workflow.
+  # If you never check out the code, then there's no vulnerability.
+  # Read more: https://github.com/actions/labeler/issues/755
+  # zizmor: ignore[dangerous-triggers]
+  - pull_request_target
+
+jobs:
+  labeler:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7.0.0

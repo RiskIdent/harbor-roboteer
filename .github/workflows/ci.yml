@@ -1,0 +1,418 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+  merge_group:
+    types:
+      - checks_requested
+
+permissions:
+  contents: read
+
+jobs:
+  zizmor:
+    name: Run zizmor 🌈
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run zizmor 🌈
+        uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
+
+  # ----------------- ( job separator ) -----------------
+
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # required by tj-actions/changed-files
+          persist-credentials: false
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        with:
+          files: |
+            .github/workflows/ci.yml
+            mise.toml
+            mise.lock
+
+      - name: List all changed files
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          if [[ -z "$ALL_CHANGED_FILES" ]]; then
+            echo "no matching files were changed"
+          fi
+          for file in ${ALL_CHANGED_FILES}; do
+            echo "$file was changed"
+          done
+
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        if: steps.changed-files.outputs.any_changed == 'true'
+        with:
+          install_args: actionlint
+          cache_key_prefix: mise-v1-actionlint
+
+      - name: Check workflow files
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          cat <<'EOF' > "$RUNNER_TEMP/actionlint-matcher.json"
+          {
+            "problemMatcher": [
+              {
+                "owner": "actionlint",
+                "pattern": [
+                  {
+                    "regexp": "^(?:\\x1b\\[\\d+m)?(.+?)(?:\\x1b\\[\\d+m)*:(?:\\x1b\\[\\d+m)*(\\d+)(?:\\x1b\\[\\d+m)*:(?:\\x1b\\[\\d+m)*(\\d+)(?:\\x1b\\[\\d+m)*: (?:\\x1b\\[\\d+m)*(.+?)(?:\\x1b\\[\\d+m)* \\[(.+?)\\]$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "message": 4,
+                    "code": 5
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+          echo "::add-matcher::$RUNNER_TEMP/actionlint-matcher.json"
+
+          mise x actionlint -- actionlint -color
+
+  # ----------------- ( job separator ) -----------------
+
+  eclint:
+    runs-on: ubuntu-latest
+    permissions:
+      # https://github.com/reviewdog/action-suggester?tab=readme-ov-file#required-permissions
+      contents: read
+      checks: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        with:
+          install_args: gitlab:greut/eclint
+          cache_key_prefix: mise-v1-eclint
+
+      - name: Log eclint version
+        run: mise x gitlab:greut/eclint -- eclint --version
+
+      - name: Run eclint
+        run: mise x gitlab:greut/eclint -- eclint -fix
+
+      - uses: reviewdog/action-suggester@ac5ce6d94e35c00530447dc63c271e38e4fd36c6 # v1.26.3
+        if: always()
+        with:
+          tool_name: eclint
+          fail_level: error
+
+  # ----------------- ( job separator ) -----------------
+
+  rumdl:
+    runs-on: ubuntu-latest
+    permissions:
+      # https://github.com/reviewdog/action-suggester?tab=readme-ov-file#required-permissions
+      contents: read
+      checks: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # required by tj-actions/changed-files
+          persist-credentials: false
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        with:
+          files: |
+            .github/workflows/ci.yml
+            **.md
+            **.markdown
+            .rumdl.toml
+            mise.toml
+            mise.lock
+
+      - name: List all changed files
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          if [[ -z "$ALL_CHANGED_FILES" ]]; then
+            echo "no matching files were changed"
+          fi
+          for file in ${ALL_CHANGED_FILES}; do
+            echo "$file was changed"
+          done
+
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        if: steps.changed-files.outputs.any_changed == 'true'
+        with:
+          install_args: rumdl
+          cache_key_prefix: mise-v1-rumdl
+
+      - name: Run rumdl
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: mise x rumdl -- rumdl check --output-format github --fix
+
+      - uses: reviewdog/action-suggester@ac5ce6d94e35c00530447dc63c271e38e4fd36c6 # v1.26.3
+        if: steps.changed-files.outputs.any_changed == 'true' && always()
+        with:
+          tool_name: rumdl
+          fail_level: error
+
+  # ----------------- ( job separator ) -----------------
+
+  typos:
+    runs-on: ubuntu-latest
+    permissions:
+      # https://github.com/reviewdog/action-suggester?tab=readme-ov-file#required-permissions
+      contents: read
+      checks: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        with:
+          install_args: typos
+          cache_key_prefix: mise-v1-typos
+
+      - name: Spell Check Repo
+        run: mise x typos -- typos --write-changes --color always
+
+      - uses: reviewdog/action-suggester@ac5ce6d94e35c00530447dc63c271e38e4fd36c6 # v1.26.3
+        if: always()
+        with:
+          tool_name: typos
+          fail_level: error
+
+  # ----------------- ( job separator ) -----------------
+
+  go-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # required by tj-actions/changed-files
+          persist-credentials: false
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        with:
+          files: |
+            .github/workflows/ci.yml
+            **.go
+            **/go.sum
+            **/go.mod
+
+      - name: List all changed files
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          if [[ -z "$ALL_CHANGED_FILES" ]]; then
+            echo "no matching files were changed"
+          fi
+          for file in ${ALL_CHANGED_FILES}; do
+            echo "$file was changed"
+          done
+
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        if: steps.changed-files.outputs.any_changed == 'true'
+        with:
+          install_args: go
+          cache_key_prefix: mise-v1-go-test
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run tests
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: go test ./...
+
+  # ----------------- ( job separator ) -----------------
+
+  golangci-lint:
+    runs-on: ubuntu-latest
+    permissions:
+      # https://github.com/reviewdog/action-suggester?tab=readme-ov-file#required-permissions
+      contents: read
+      checks: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # required by tj-actions/changed-files
+          persist-credentials: false
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        with:
+          files: |
+            .github/workflows/ci.yml
+            **.go
+            **/go.sum
+            **/go.mod
+
+      - name: List all changed files
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          if [[ -z "$ALL_CHANGED_FILES" ]]; then
+            echo "no matching files were changed"
+          fi
+          for file in ${ALL_CHANGED_FILES}; do
+            echo "$file was changed"
+          done
+
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        if: steps.changed-files.outputs.any_changed == 'true'
+        with:
+          install_args: go golangci-lint
+          cache_key_prefix: mise-v1-golangci-lint
+
+      - name: Run golangci-lint
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: golangci-lint run --fix --output.text.colors=true
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-golangci-lint-
+            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+            ${{ runner.os }}-go-
+
+      - uses: reviewdog/action-suggester@ac5ce6d94e35c00530447dc63c271e38e4fd36c6 # v1.26.3
+        if: always()
+        with:
+          tool_name: golangci-lint
+          fail_level: error
+
+  # ----------------- ( job separator ) -----------------
+
+  mise:
+    runs-on: ubuntu-latest
+    permissions:
+      # https://github.com/reviewdog/action-suggester?tab=readme-ov-file#required-permissions
+      contents: read
+      checks: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # required by tj-actions/changed-files
+          persist-credentials: false
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        with:
+          files: |
+            .github/workflows/ci.yml
+            **/mise.lock
+            **/mise.toml
+
+      - name: List all changed files
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          if [[ -z "$ALL_CHANGED_FILES" ]]; then
+            echo "no matching files were changed"
+          fi
+          for file in ${ALL_CHANGED_FILES}; do
+            echo "$file was changed"
+          done
+
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        if: steps.changed-files.outputs.any_changed == 'true'
+        with:
+          install: false
+          cache_key_prefix: mise-v1-mise
+
+      - name: Format mise.toml
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: mise fmt
+
+      - name: suggester / mise fmt
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: reviewdog/action-suggester@ac5ce6d94e35c00530447dc63c271e38e4fd36c6 # v1.26.3
+        with:
+          tool_name: mise fmt
+          fail_level: error
+
+  # ----------------- ( job separator ) -----------------
+
+  hk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # required by tj-actions/changed-files
+          persist-credentials: false
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        with:
+          files: |
+            .github/workflows/ci.yml
+            **/mise.lock
+            **/mise.toml
+            **/hk.pkl
+
+      - name: List all changed files
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          if [[ -z "$ALL_CHANGED_FILES" ]]; then
+            echo "no matching files were changed"
+          fi
+          for file in ${ALL_CHANGED_FILES}; do
+            echo "$file was changed"
+          done
+
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        if: steps.changed-files.outputs.any_changed == 'true'
+        with:
+          install_args: hk
+          cache_key_prefix: mise-v1-hk
+
+      - name: Validate hk.pkl
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: mise x hk -- hk validate
