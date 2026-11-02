@@ -1,5 +1,4 @@
 {
-  "release-as": "0.1.0",
   "changelog-type": "default",
   "skip-changelog": true,
   "include-commit-authors": true,
