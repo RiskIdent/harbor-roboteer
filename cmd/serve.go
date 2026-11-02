@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 
@@ -33,7 +34,11 @@ to quickly create a Cobra application.`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		ctx := cmd.Context()
 		log := logger.New(logLevel, logFormat)
-		hc, err := harbor.New(harborURL, harborUsername, harborPassword)
+		hc, err := harbor.New(
+			cmp.Or(harborURL, os.Getenv("HARBOR_URL")),
+			cmp.Or(harborUsername, os.Getenv("HARBOR_USERNAME")),
+			cmp.Or(harborPassword, os.Getenv("HARBOR_PASSWORD")),
+		)
 		if err != nil {
 			return err
 		}
@@ -57,7 +62,7 @@ func init() {
 	serveCmd.Flags().StringVarP(&port, "port", "p", "8080", "server port")
 	serveCmd.Flags().StringVarP(&logLevel, "log-level", "", "info", "log level")
 	serveCmd.Flags().StringVarP(&logFormat, "log-format", "", "json", "log format")
-	serveCmd.Flags().StringVar(&harborURL, "harbor-url", os.Getenv("HARBOR_URL"), "Harbor base URL (env HARBOR_URL)")
-	serveCmd.Flags().StringVar(&harborUsername, "harbor-username", os.Getenv("HARBOR_USERNAME"), "Harbor admin or robot username (env HARBOR_USERNAME)")
-	serveCmd.Flags().StringVar(&harborPassword, "harbor-password", os.Getenv("HARBOR_PASSWORD"), "Harbor password, prefer the env var (env HARBOR_PASSWORD)")
+	serveCmd.Flags().StringVar(&harborURL, "harbor-url", "", "Harbor base URL (env HARBOR_URL)")
+	serveCmd.Flags().StringVar(&harborUsername, "harbor-username", "", "Harbor admin or robot username (env HARBOR_USERNAME)")
+	serveCmd.Flags().StringVar(&harborPassword, "harbor-password", "", "Harbor password, prefer the env var (env HARBOR_PASSWORD)")
 }
