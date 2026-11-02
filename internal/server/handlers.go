@@ -10,9 +10,9 @@ func (s *Server) registerHandlers() {
 }
 
 func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
-	return
+	// TODO: implement this
 }
 
 func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
-	return
+	// TODO: implement this
 }
