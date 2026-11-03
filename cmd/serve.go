@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	port      string
+	addr      string
 	logLevel  string
 	logFormat string
 
@@ -42,7 +42,7 @@ to quickly create a Cobra application.`,
 		if err != nil {
 			return err
 		}
-		s, err := server.NewServer(ctx, port, log, hc)
+		s, err := server.NewServer(ctx, addr, log, hc)
 		if err != nil {
 			return err
 		}
@@ -59,7 +59,7 @@ to quickly create a Cobra application.`,
 func init() {
 	rootCmd.AddCommand(serveCmd)
 
-	serveCmd.Flags().StringVarP(&port, "port", "p", "8080", "server port")
+	serveCmd.Flags().StringVarP(&addr, "addr", "a", "127.0.0.1:8080", "server addr")
 	serveCmd.Flags().StringVarP(&logLevel, "log-level", "", "info", "log level")
 	serveCmd.Flags().StringVarP(&logFormat, "log-format", "", "json", "log format")
 	serveCmd.Flags().StringVar(&harborURL, "harbor-url", "", "Harbor base URL (env HARBOR_URL)")

@@ -30,11 +30,11 @@ type IServer interface {
 	Start(ctx context.Context) error
 }
 
-func NewServer(ctx context.Context, port string, log *slog.Logger, hc harborClient) (*Server, error) {
+func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClient) (*Server, error) {
 	r := http.NewServeMux()
-	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", ":"+port)
+	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 	if err != nil {
-		return &Server{}, fmt.Errorf("couldn't create the listener with port %s, error: %w", port, err)
+		return &Server{}, fmt.Errorf("couldn't create the listener with addr %s, error: %w", addr, err)
 	}
 	s := &Server{
 		router: r,
