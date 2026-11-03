@@ -3,11 +3,14 @@ package server
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -84,5 +87,55 @@ func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
-	// TODO: implement this
+	token, ok := bearerToken(r)
+	if !ok {
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		http.Error(w, "Authorization: Bearer <delete token> header is required", http.StatusUnauthorized)
+		return
+	}
+
+	robotID, err := strconv.ParseInt(r.URL.Query().Get("robot_id"), 10, 64)
+	if err != nil {
+		http.Error(w, "robot_id query parameter must be an integer", http.StatusBadRequest)
+		return
+	}
+
+	rb, err := s.harbor.GetRobotByID(r.Context(), robotID)
+	if errors.Is(err, harbor.ErrRobotNotFound) {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		s.log.ErrorContext(r.Context(), "get robot account", slog.Any("error", err))
+		http.Error(w, "failed to get robot account from Harbor", http.StatusBadGateway)
+		return
+	}
+
+	hash := sha256.Sum256([]byte(token))
+	want := deleteTokenPrefix + hex.EncodeToString(hash[:])
+	if subtle.ConstantTimeCompare([]byte(rb.Description), []byte(want)) != 1 {
+		http.Error(w, "invalid delete token", http.StatusForbidden)
+		return
+	}
+
+	err = s.harbor.DeleteRobot(r.Context(), robotID)
+	if errors.Is(err, harbor.ErrRobotNotFound) {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		s.log.ErrorContext(r.Context(), "delete robot account", slog.Any("error", err))
+		http.Error(w, "failed to delete robot account in Harbor", http.StatusBadGateway)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func bearerToken(r *http.Request) (string, bool) {
+	scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
+	if !ok || !strings.EqualFold(scheme, "Bearer") {
+		return "", false
+	}
+	token = strings.TrimLeft(token, " ")
+	return token, token != ""
 }

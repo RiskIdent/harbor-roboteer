@@ -15,7 +15,10 @@ import (
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/models"
 )
 
-var ErrRobotExists = errors.New("robot account already exists")
+var (
+	ErrRobotExists   = errors.New("robot account already exists")
+	ErrRobotNotFound = errors.New("robot account not found")
+)
 
 type Client struct {
 	api *v2client.HarborAPI
@@ -47,6 +50,19 @@ func New(harborURL, username, password string) (*Client, error) {
 	}, nil
 }
 
+// GetRobotByID returns the robot account with the given ID, or ErrRobotNotFound.
+func (c *Client) GetRobotByID(ctx context.Context, id int64) (*models.Robot, error) {
+	resp, err := c.api.Robot.GetRobotByID(ctx, robot.NewGetRobotByIDParams().WithRobotID(id))
+	if err != nil {
+		var notFound *robot.GetRobotByIDNotFound
+		if errors.As(err, &notFound) {
+			return nil, ErrRobotNotFound
+		}
+		return nil, fmt.Errorf("get robot %d: %w", id, err)
+	}
+	return resp.Payload, nil
+}
+
 // CreateRobot creates a project-level robot account with pull and push access to project.
 func (c *Client) CreateRobot(ctx context.Context, name, project, description string) (*models.RobotCreated, error) {
 	resp, err := c.api.Robot.CreateRobot(ctx, robot.NewCreateRobotParams().WithRobot(&models.RobotCreate{
@@ -71,4 +87,16 @@ func (c *Client) CreateRobot(ctx context.Context, name, project, description str
 		return nil, fmt.Errorf("create robot: %w", err)
 	}
 	return resp.Payload, nil
+}
+
+// DeleteRobot deletes the robot account with the given ID, or returns ErrRobotNotFound.
+func (c *Client) DeleteRobot(ctx context.Context, id int64) error {
+	if _, err := c.api.Robot.DeleteRobot(ctx, robot.NewDeleteRobotParams().WithRobotID(id)); err != nil {
+		var notFound *robot.DeleteRobotNotFound
+		if errors.As(err, &notFound) {
+			return ErrRobotNotFound
+		}
+		return fmt.Errorf("delete robot %d: %w", id, err)
+	}
+	return nil
 }

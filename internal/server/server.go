@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
+	"github.com/goharbor/go-client/pkg/sdk/v2.0/models"
 )
 
 type Server struct {
@@ -17,14 +17,20 @@ type Server struct {
 	server   *http.Server
 	listener net.Listener
 	log      *slog.Logger
-	harbor   *harbor.Client
+	harbor   harborClient
+}
+
+type harborClient interface {
+	CreateRobot(ctx context.Context, name, project, description string) (*models.RobotCreated, error)
+	GetRobotByID(ctx context.Context, id int64) (*models.Robot, error)
+	DeleteRobot(ctx context.Context, id int64) error
 }
 
 type IServer interface {
 	Start(ctx context.Context) error
 }
 
-func NewServer(ctx context.Context, port string, log *slog.Logger, hc *harbor.Client) (*Server, error) {
+func NewServer(ctx context.Context, port string, log *slog.Logger, hc harborClient) (*Server, error) {
 	r := http.NewServeMux()
 	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", ":"+port)
 	if err != nil {
