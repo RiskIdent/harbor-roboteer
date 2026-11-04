@@ -6,6 +6,9 @@ require (
 	github.com/go-openapi/runtime v0.21.0
 	github.com/go-ozzo/ozzo-validation/v4 v4.5.0
 	github.com/goharbor/go-client v0.213.1
+	github.com/jwx-go/jwkfetch/v4 v4.0.4
+	github.com/lestrrat-go/httprc/v3 v3.0.6
+	github.com/lestrrat-go/jwx/v4 v4.6.0
 	github.com/spf13/cobra v1.10.2
 )
 
@@ -33,6 +36,11 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
+	github.com/lestrrat-go/blackmagic v1.0.4 // indirect
+	github.com/lestrrat-go/dsig v1.4.0 // indirect
+	github.com/lestrrat-go/httpcc v1.0.1 // indirect
+	github.com/lestrrat-go/option/v2 v2.0.0 // indirect
+	github.com/lestrrat-go/option/v3 v3.0.0-alpha1 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/oklog/ulid/v2 v2.1.2 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
