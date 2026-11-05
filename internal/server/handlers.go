@@ -14,20 +14,20 @@ import (
 
 	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
+	"github.com/lestrrat-go/jwx/v4/jwt"
 )
 
 const deleteTokenPrefix = "roboteer-delete-token-sha256:"
 
 type postTokenRequest struct {
-	// name and project come from the caller until JWT validation lands
-	// TODO: once we have implemented jwt remove this
-	Name    string `json:"name"`
+	Name string `json:"name"`
+	// project comes from the caller until the permission config (#38) lands
+	// TODO: remove once project permissions are resolved from the token's claims
 	Project string `json:"project"`
 }
 
 func (r postTokenRequest) Validate() error {
 	return validation.ValidateStruct(&r,
-		validation.Field(&r.Name, validation.Required),
 		validation.Field(&r.Project, validation.Required),
 	)
 }
@@ -51,6 +51,15 @@ func (s *Server) registerHandlers() {
 }
 
 func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
+	tok, err := jwt.ParseRequest(r, s.jwtOpts...)
+	if err != nil {
+		s.log.ErrorContext(r.Context(), "parse token")
+		s.log.DebugContext(r.Context(), "reject token", slog.Any("error", err))
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		http.Error(w, "invalid or missing token", http.StatusUnauthorized)
+		return
+	}
+
 	var req postTokenRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "body must be valid JSON", http.StatusBadRequest)
@@ -61,10 +70,20 @@ func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	name := req.Name
+	if name == "" {
+		name, _ = tok.Subject()
+	}
+	if name == "" {
+		s.log.ErrorContext(r.Context(), "token has no sub claim and no name was provided in the request body")
+		http.Error(w, "token has no sub claim, set name in the request body", http.StatusUnauthorized)
+		return
+	}
+
 	deleteToken := rand.Text()
 	hash := sha256.Sum256([]byte(deleteToken))
 
-	created, err := s.harbor.CreateRobot(r.Context(), req.Name, req.Project, deleteTokenPrefix+hex.EncodeToString(hash[:]))
+	created, err := s.harbor.CreateRobot(r.Context(), name, req.Project, deleteTokenPrefix+hex.EncodeToString(hash[:]))
 	if errors.Is(err, harbor.ErrRobotExists) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
