@@ -32,6 +32,50 @@ run = "hk uninstall"
 description = "Uninstalls hk Git pre-commit hook globally from your gitconfig"
 run = "hk uninstall --global"
 
+[tasks."docs:update-redoc"]
+description = "Vendors a Redoc version from the npm registry into internal/server/docs"
+dir = "{{config_root}}/internal/server/docs"
+usage = 'arg "<version>" help="Redoc version to vendor, e.g. 2.5.4. See https://www.npmjs.com/package/redoc"'
+# Setting shell replaces mise's default flags, so errexit etc. is set here
+shell = "bash -euo pipefail -c"
+run = '''
+  registry=https://registry.npmjs.org/redoc
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+
+  echo "Requesting '$registry/-/redoc-${usage_version?}.tgz'..."
+  curl -fsSL "$registry/-/redoc-${usage_version?}.tgz" -o "$tmp/redoc.tgz"
+
+  # Verify the download against the integrity hash that the registry publishes
+  want=$(curl -fsSL "$registry/${usage_version?}" | grep -o '"integrity":"sha512-[^"]*"' | cut -d'"' -f4)
+  got="sha512-$(openssl dgst -sha512 -binary "$tmp/redoc.tgz" | openssl base64 -A)"
+  if [[ -z $want || $got != "$want" ]]; then
+    echo "integrity mismatch for redoc@${usage_version?}: want '$want', got '$got'" >&2
+    exit 1
+  fi
+
+  tar -xzf "$tmp/redoc.tgz" -C "$tmp"
+
+  # Keep the repo's newline and whitespace linters happy: no trailing whitespace,
+  # and exactly one final newline ($(...) strips them all, then printf adds one).
+  # The assignment is separate so that errexit catches a failing sed.
+  normalize() {
+    local content
+    content=$(sed 's/[[:blank:]]*$//' "$1")
+    printf '%s\n' "${content}" > "$2"
+  }
+  normalize "$tmp/package/bundles/redoc.standalone.js" redoc.standalone.js
+  normalize "$tmp/package/LICENSE" LICENSE.redoc
+
+  # Only some versions ship this file (2.x does, 3.x has the license inline)
+  rm -f redoc.standalone.js.LICENSE.txt
+  if [[ -f $tmp/package/bundles/redoc.standalone.js.LICENSE.txt ]]; then
+    normalize "$tmp/package/bundles/redoc.standalone.js.LICENSE.txt" redoc.standalone.js.LICENSE.txt
+  fi
+
+  echo "Vendored redoc@${usage_version?}. Now run the tests."
+'''
+
 [settings]
 pin = true      # use versions instead of "latest" when adding new tools
 lockfile = true

@@ -26,6 +26,9 @@
 extend-exclude = [
 	# gitignore syntax
 	#"*.sops.yml",
+
+	# Vendored, minified third-party code
+	"internal/server/docs/redoc.standalone.js*",
 ]
 
 

@@ -1,153 +1,167 @@
 package server
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
+	"github.com/RiskIdent/harbor-roboteer/internal/server/oapi"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/lestrrat-go/jwx/v4/jwt"
 )
 
 const deleteTokenPrefix = "roboteer-delete-token-sha256:"
 
-type postTokenRequest struct {
-	Name string `json:"name"`
-	// project comes from the caller until the permission config (#38) lands
-	// TODO: remove once project permissions are resolved from the token's claims
-	Project string `json:"project"`
-}
-
-func (r postTokenRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Project, validation.Required),
-	)
-}
-
-type robotCredentials struct {
-	ID       int64  `json:"id"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-type postTokenResponse struct {
-	Robot       robotCredentials `json:"robot"`
-	DeleteToken string           `json:"deleteToken"`
-}
-
-func (s *Server) registerHandlers() {
-	router := s.router
-
-	router.HandleFunc("POST /token", s.postToken)
-	router.HandleFunc("DELETE /token", s.deleteToken)
-}
-
-func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
-	tok, err := jwt.ParseRequest(r, s.jwtOpts...)
+func (s *Server) registerHandlers(appVersion string) error {
+	specJSON, err := openAPIJSON(appVersion)
 	if err != nil {
-		s.log.ErrorContext(r.Context(), "parse token")
-		s.log.DebugContext(r.Context(), "reject token", slog.Any("error", err))
-		w.Header().Set("WWW-Authenticate", "Bearer")
-		http.Error(w, "invalid or missing token", http.StatusUnauthorized)
-		return
+		return err
+	}
+	specYAML, err := openAPIYAML(appVersion)
+	if err != nil {
+		return err
+	}
+	s.router.HandleFunc("GET /openapi.json", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(specJSON)
+	})
+	// The docs use this one: unlike the JSON, which is re-marshalled and so
+	// sorts methods alphabetically, it lists operations in the order of the source
+	s.router.HandleFunc("GET /openapi.yaml", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/yaml")
+		_, _ = w.Write(specYAML)
+	})
+	// "{$}" matches only the root path, not every unmatched path
+	s.router.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/docs/", http.StatusTemporaryRedirect)
+	})
+	// "GET /docs" is redirected to "/docs/" by the mux
+	s.router.Handle("GET /docs/", docsHandler())
+
+	strict := oapi.NewStrictHandler(s, []oapi.StrictMiddlewareFunc{s.authenticate})
+	oapi.HandlerWithOptions(strict, oapi.StdHTTPServerOptions{BaseRouter: s.router})
+	return nil
+}
+
+type (
+	jwtCtxKey       struct{}
+	deleteKeyCtxKey struct{}
+)
+
+func unauthorized(msg string) oapi.UnauthorizedTextResponse {
+	scheme := "Bearer"
+	return oapi.UnauthorizedTextResponse{
+		Body:    msg,
+		Headers: oapi.UnauthorizedResponseHeaders{WWWAuthenticate: &scheme},
+	}
+}
+
+// authenticate enforces the security schemes declared in api/openapi.yaml.
+// The generated code does not do it for us, so it is keyed on the generated
+// operation names (Go-cased operationId from the spec).
+func (s *Server) authenticate(next oapi.StrictHandlerFunc, operationID string) oapi.StrictHandlerFunc {
+	return func(ctx context.Context, w http.ResponseWriter, r *http.Request, req any) (any, error) {
+		switch operationID {
+		case "PostToken": // security: JWT
+			tok, err := jwt.ParseRequest(r, s.jwtOpts...)
+			if err != nil {
+				s.log.ErrorContext(ctx, "parse token")
+				s.log.DebugContext(ctx, "reject token", slog.Any("error", err))
+				return oapi.PostToken401TextResponse{UnauthorizedTextResponse: unauthorized("invalid or missing token")}, nil
+			}
+			ctx = context.WithValue(ctx, jwtCtxKey{}, tok)
+		case "DeleteToken": // security: DeleteKey
+			token, ok := bearerToken(r)
+			if !ok {
+				return oapi.DeleteToken401TextResponse{UnauthorizedTextResponse: unauthorized("Authorization: Bearer <delete token> header is required")}, nil
+			}
+			ctx = context.WithValue(ctx, deleteKeyCtxKey{}, token)
+		}
+		return next(ctx, w, r, req)
+	}
+}
+
+// PostToken is the handler for "POST /token"
+func (s *Server) PostToken(ctx context.Context, request oapi.PostTokenRequestObject) (oapi.PostTokenResponseObject, error) {
+	tok := ctx.Value(jwtCtxKey{}).(jwt.Token)
+	req := request.Body
+
+	if err := validation.ValidateStruct(req,
+		validation.Field(&req.Project, validation.Required),
+	); err != nil {
+		return oapi.PostToken400TextResponse(err.Error()), nil
 	}
 
-	var req postTokenRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "body must be valid JSON", http.StatusBadRequest)
-		return
+	var name string
+	if req.Name != nil {
+		name = *req.Name
 	}
-	if err := req.Validate(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	name := req.Name
 	if name == "" {
 		name, _ = tok.Subject()
 	}
 	if name == "" {
-		s.log.ErrorContext(r.Context(), "token has no sub claim and no name was provided in the request body")
-		http.Error(w, "token has no sub claim, set name in the request body", http.StatusUnauthorized)
-		return
+		s.log.ErrorContext(ctx, "token has no sub claim and no name was provided in the request body")
+		return oapi.PostToken401TextResponse{UnauthorizedTextResponse: unauthorized("token has no sub claim, set name in the request body")}, nil
 	}
 
 	deleteToken := rand.Text()
 	hash := sha256.Sum256([]byte(deleteToken))
 
-	created, err := s.harbor.CreateRobot(r.Context(), name, req.Project, deleteTokenPrefix+hex.EncodeToString(hash[:]))
+	created, err := s.harbor.CreateRobot(ctx, name, req.Project, deleteTokenPrefix+hex.EncodeToString(hash[:]))
 	if errors.Is(err, harbor.ErrRobotExists) {
-		http.Error(w, err.Error(), http.StatusConflict)
-		return
+		return oapi.PostToken409TextResponse(err.Error()), nil
 	}
 	if err != nil {
-		s.log.ErrorContext(r.Context(), "create robot account", slog.Any("error", err))
-		http.Error(w, "failed to create robot account in Harbor", http.StatusBadGateway)
-		return
+		s.log.ErrorContext(ctx, "create robot account", slog.Any("error", err))
+		return oapi.PostToken502TextResponse("failed to create robot account in Harbor"), nil
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(postTokenResponse{
-		Robot: robotCredentials{
-			ID:       created.ID,
+	return oapi.PostToken200JSONResponse{
+		Robot: oapi.RobotCredentials{
+			Id:       created.ID,
 			Username: created.Name,
 			Password: created.Secret,
 		},
 		DeleteToken: deleteToken,
-	})
+	}, nil
 }
 
-func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
-	token, ok := bearerToken(r)
-	if !ok {
-		w.Header().Set("WWW-Authenticate", "Bearer")
-		http.Error(w, "Authorization: Bearer <delete token> header is required", http.StatusUnauthorized)
-		return
-	}
+// DeleteToken is the handler for "DELETE /token"
+func (s *Server) DeleteToken(ctx context.Context, request oapi.DeleteTokenRequestObject) (oapi.DeleteTokenResponseObject, error) {
+	token := ctx.Value(deleteKeyCtxKey{}).(string)
+	robotID := request.Params.RobotId
 
-	robotID, err := strconv.ParseInt(r.URL.Query().Get("robot_id"), 10, 64)
-	if err != nil {
-		http.Error(w, "robot_id query parameter must be an integer", http.StatusBadRequest)
-		return
-	}
-
-	rb, err := s.harbor.GetRobotByID(r.Context(), robotID)
+	rb, err := s.harbor.GetRobotByID(ctx, robotID)
 	if errors.Is(err, harbor.ErrRobotNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
+		return oapi.DeleteToken404TextResponse(err.Error()), nil
 	}
 	if err != nil {
-		s.log.ErrorContext(r.Context(), "get robot account", slog.Any("error", err))
-		http.Error(w, "failed to get robot account from Harbor", http.StatusBadGateway)
-		return
+		s.log.ErrorContext(ctx, "get robot account", slog.Any("error", err))
+		return oapi.DeleteToken502TextResponse("failed to get robot account from Harbor"), nil
 	}
 
 	hash := sha256.Sum256([]byte(token))
 	want := deleteTokenPrefix + hex.EncodeToString(hash[:])
 	if subtle.ConstantTimeCompare([]byte(rb.Description), []byte(want)) != 1 {
-		http.Error(w, "invalid delete token", http.StatusForbidden)
-		return
+		return oapi.DeleteToken403TextResponse("invalid delete token"), nil
 	}
 
-	err = s.harbor.DeleteRobot(r.Context(), robotID)
+	err = s.harbor.DeleteRobot(ctx, robotID)
 	if errors.Is(err, harbor.ErrRobotNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
+		return oapi.DeleteToken404TextResponse(err.Error()), nil
 	}
 	if err != nil {
-		s.log.ErrorContext(r.Context(), "delete robot account", slog.Any("error", err))
-		http.Error(w, "failed to delete robot account in Harbor", http.StatusBadGateway)
-		return
+		s.log.ErrorContext(ctx, "delete robot account", slog.Any("error", err))
+		return oapi.DeleteToken502TextResponse("failed to delete robot account in Harbor"), nil
 	}
-	w.WriteHeader(http.StatusNoContent)
+	return oapi.DeleteToken204Response{}, nil
 }
 
 func bearerToken(r *http.Request) (string, bool) {

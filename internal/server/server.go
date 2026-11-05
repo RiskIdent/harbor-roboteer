@@ -13,6 +13,8 @@ import (
 	"github.com/lestrrat-go/jwx/v4/jwt"
 )
 
+//go:generate go tool oapi-codegen -config oapi/cfg.yaml ../../api/openapi.yaml
+
 type Server struct {
 	router   *http.ServeMux
 	server   *http.Server
@@ -32,7 +34,7 @@ type IServer interface {
 	Start(ctx context.Context) error
 }
 
-func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClient, jwtOpts ...jwt.ParseOption) (*Server, error) {
+func NewServer(ctx context.Context, addr string, log *slog.Logger, appVersion string, hc harborClient, jwtOpts ...jwt.ParseOption) (*Server, error) {
 	r := http.NewServeMux()
 	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 	if err != nil {
@@ -48,7 +50,10 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClie
 		harbor:   hc,
 		jwtOpts:  jwtOpts,
 	}
-	s.registerHandlers()
+	if err := s.registerHandlers(appVersion); err != nil {
+		_ = l.Close()
+		return nil, err
+	}
 	return s, nil
 }
 

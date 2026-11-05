@@ -10,7 +10,7 @@ import (
 )
 
 func TestStartWaitsForInFlightRequests(t *testing.T) {
-	s, err := NewServer(t.Context(), ":0", slog.New(slog.DiscardHandler), nil)
+	s, err := NewServer(t.Context(), ":0", slog.New(slog.DiscardHandler), "test", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
