@@ -13,10 +13,11 @@ func Get(version string) string {
 			if commit, ok := BuildVersion(info); ok {
 				return commit
 			}
+			return "devel"
 		}
 		return info.Main.Version
 	}
-	return "(none)"
+	return "none"
 }
 
 func BuildVersion(info *debug.BuildInfo) (string, bool) {

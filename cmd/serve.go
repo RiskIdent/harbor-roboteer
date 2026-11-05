@@ -61,7 +61,7 @@ to quickly create a Cobra application.`,
 		}
 		defer func() { _ = stopJWKS(context.WithoutCancel(ctx)) }()
 
-		s, err := server.NewServer(ctx, addr, log, hc,
+		s, err := server.NewServer(ctx, addr, log, cmd.Root().Version, hc,
 			jwt.WithKeySet(keys),
 			jwt.WithIssuer(issuer),
 			jwt.WithAudience(audience),

@@ -1,0 +1,2 @@
+# Vendored, minified bundle: keep out of diffs and language stats
+internal/server/docs/redoc.standalone.js -diff linguist-vendored
