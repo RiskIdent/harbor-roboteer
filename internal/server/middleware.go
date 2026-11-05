@@ -3,15 +3,22 @@ package server
 import (
 	"log/slog"
 	"net/http"
+	"slices"
+	"strings"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
 )
 
-type Middleware struct {
-	logger *slog.Logger
-}
+type Middleware func(http.Handler) http.Handler
 
-func NewMiddleware(logger *slog.Logger) *Middleware {
-	return &Middleware{logger: logger}
+// ChainMiddlewares wraps list of middlewares. The first middleware in the list is the outermost.
+func ChainMiddlewares(h http.Handler, mws ...Middleware) http.Handler {
+	for _, mw := range slices.Backward(mws) {
+		h = mw(h)
+	}
+	return h
 }
 
 type responseWriter struct {
@@ -24,7 +31,18 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-func (m *Middleware) LoggingMiddleware(next http.Handler) http.Handler {
+// Unwrap lets http.NewResponseController reach the underlying writer.
+func (rw *responseWriter) Unwrap() http.ResponseWriter {
+	return rw.ResponseWriter
+}
+
+func LoggingMiddleware(logger *slog.Logger) Middleware {
+	return func(next http.Handler) http.Handler {
+		return loggingHandler(logger, next)
+	}
+}
+
+func loggingHandler(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
@@ -45,16 +63,37 @@ func (m *Middleware) LoggingMiddleware(next http.Handler) http.Handler {
 			logLevel = slog.LevelWarn
 		}
 
-		m.logger.LogAttrs(
-			r.Context(),
-			logLevel,
-			"request",
+		attrs := []slog.Attr{
 			slog.Int("status", rw.statusCode),
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
 			slog.String("duration", duration.String()),
 			slog.String("remoteAddr", r.RemoteAddr),
 			slog.String("userAgent", r.UserAgent()),
-		)
+		}
+		// Only set when the tracing middleware started a span (filtered paths have none)
+		if sc := trace.SpanContextFromContext(r.Context()); sc.IsValid() {
+			attrs = append(attrs,
+				slog.String("traceId", sc.TraceID().String()),
+				slog.String("spanId", sc.SpanID().String()),
+			)
+		}
+
+		logger.LogAttrs(r.Context(), logLevel, "request", attrs...)
 	})
+}
+
+func TracingMiddleware(untracedPaths ...string) Middleware {
+	return otelhttp.NewMiddleware("server", otelhttp.WithFilter(func(r *http.Request) bool {
+		return !slices.ContainsFunc(untracedPaths, func(pattern string) bool {
+			return matchPath(pattern, r.URL.Path)
+		})
+	}))
+}
+
+func matchPath(pattern, path string) bool {
+	if prefix, ok := strings.CutSuffix(pattern, "*"); ok {
+		return strings.HasPrefix(path, prefix)
+	}
+	return path == pattern
 }

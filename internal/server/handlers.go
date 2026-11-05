@@ -43,6 +43,12 @@ type postTokenResponse struct {
 	DeleteToken string           `json:"deleteToken"`
 }
 
+var untracedPaths = []string{
+	"/health",
+	"/swagger",
+	"/swagger/*", // Swagger UI serves its HTML, CSS and JS assets under here
+}
+
 func (s *Server) registerHandlers() {
 	router := s.router
 
