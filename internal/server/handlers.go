@@ -48,6 +48,8 @@ func (s *Server) registerHandlers() {
 
 	router.HandleFunc("POST /token", s.postToken)
 	router.HandleFunc("DELETE /token", s.deleteToken)
+
+	router.HandleFunc("GET /health", s.health)
 }
 
 func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
@@ -148,6 +150,15 @@ func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) health(w http.ResponseWriter, r *http.Request) {
+	if err := s.harbor.Ping(r.Context()); err != nil {
+		s.log.ErrorContext(r.Context(), "ping harbor", slog.Any("error", err))
+		http.Error(w, "not healthy", http.StatusServiceUnavailable)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func bearerToken(r *http.Request) (string, bool) {

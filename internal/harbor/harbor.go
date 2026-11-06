@@ -14,6 +14,7 @@ import (
 	httptransport "github.com/go-openapi/runtime/client"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	v2client "github.com/goharbor/go-client/pkg/sdk/v2.0/client"
+	"github.com/goharbor/go-client/pkg/sdk/v2.0/client/ping"
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/client/robot"
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/models"
 )
@@ -127,6 +128,14 @@ func (c *Client) DeleteRobot(ctx context.Context, id int64) error {
 			return ErrRobotNotFound
 		}
 		return fmt.Errorf("delete robot %d: %w", id, err)
+	}
+	return nil
+}
+
+// Ping pings the harbor api to check if it is reachable.
+func (c *Client) Ping(ctx context.Context) error {
+	if _, err := c.api.Ping.GetPing(ctx, ping.NewGetPingParams()); err != nil {
+		return fmt.Errorf("ping harbor: %w", err)
 	}
 	return nil
 }
