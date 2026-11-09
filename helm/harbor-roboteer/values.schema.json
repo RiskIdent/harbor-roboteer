@@ -5,6 +5,9 @@
     "affinity": {
       "type": "object"
     },
+    "args": {
+      "type": "array"
+    },
     "autoscaling": {
       "type": "object",
       "properties": {
@@ -21,6 +24,12 @@
           "type": "integer"
         }
       }
+    },
+    "env": {
+      "type": "array"
+    },
+    "envFrom": {
+      "type": "array"
     },
     "fullnameOverride": {
       "type": "string"

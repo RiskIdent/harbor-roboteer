@@ -50,7 +50,7 @@ service:
   # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
   type: ClusterIP
   # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
-  port: 80
+  port: 8080
 
 # This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/
 ingress:
@@ -143,11 +143,11 @@ resources: {}
 # This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 livenessProbe:
   httpGet:
-    path: /
+    path: /health
     port: http
 readinessProbe:
   httpGet:
-    path: /
+    path: /health
     port: http
 
 # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
@@ -157,6 +157,28 @@ autoscaling:
   maxReplicas: 100
   targetCPUUtilizationPercentage: 80
   # targetMemoryUtilizationPercentage: 80
+
+# Extra flags.
+args: []
+  # - --log-level=debug
+  # - --oidc-audience=harbor-roboteer
+
+# Environment variables for the container.
+env: []
+  # - name: HARBOR_URL
+  #   value: https://harbor.example.com
+  # - name: HARBOR_PASSWORD
+  #   valueFrom:
+  #     secretKeyRef:
+  #       name: harbor-roboteer
+  #       key: password
+  # - name: OTEL_EXPORTER_OTLP_ENDPOINT
+  #   value: http://otel-collector:4318
+
+# Load all keys of a Secret/ConfigMap as env vars.
+envFrom: []
+  # - secretRef:
+  #     name: harbor-roboteer
 
 # Additional volumes on the output Deployment definition.
 volumes: []
