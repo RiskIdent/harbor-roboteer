@@ -34,4 +34,3 @@ linters:
         - level # can be confused with log level
         - source # can be confused with caller site
       key-naming-case: camel
-
