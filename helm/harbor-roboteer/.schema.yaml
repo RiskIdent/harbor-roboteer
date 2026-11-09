@@ -3,7 +3,7 @@
 draft: 7
 indent: 2
 useHelmDocs: true
-k8sSchemaVersion: v1.33.5
+k8sSchemaVersion: v1.36.4
 
 bundle: true
 bundleRoot: ../..
