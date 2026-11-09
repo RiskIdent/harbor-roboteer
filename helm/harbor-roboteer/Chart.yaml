@@ -1,0 +1,10 @@
+apiVersion: v2
+name: harbor-roboteer
+description: Deploys harbor-roboteer to Kubernetes
+
+type: application
+version: 0.1.0 # updated by CI/CD release workflow
+appVersion: "v0.1.0" # updated by CI/CD release workflow
+
+sources:
+  - https://github.com/RiskIdent/harbor-roboteer

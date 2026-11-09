@@ -110,3 +110,44 @@ jobs:
           else
             echo "no ~/.ssh/id_ed25519 file found"
           fi
+
+  helm:
+    needs: release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write # for ghcr.io
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        with:
+          install_args: helm
+          cache: ${{ github.event_name != 'push' || !startsWith(github.ref, 'refs/tags/') }} # zizmor: ignore[cache-poisoning]
+
+      - name: Lint and package chart
+        if: github.event_name != 'push' || !startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -x
+          helm lint ./helm/harbor-roboteer
+          helm package ./helm/harbor-roboteer --version 0.0.0-snapshot --app-version v0.0.0
+
+      - name: Login to GHCR
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        env:
+          USERNAME: ${{ github.actor }}
+          PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$PASSWORD" | helm registry login ghcr.io --username "$USERNAME" --password-stdin
+
+      - name: Package and release chart
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -x
+          helm package ./helm/harbor-roboteer --version "${VERSION#v}" --app-version "$VERSION"
+          helm push "./harbor-roboteer-${VERSION#v}.tgz" oci://ghcr.io/RiskIdent
