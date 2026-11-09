@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/RiskIdent/harbor-roboteer/api"
+	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
 	"github.com/RiskIdent/harbor-roboteer/internal/server/oapi"
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/models"
 )
@@ -23,6 +24,7 @@ type fakeHarbor struct {
 	robot   *models.Robot
 	deleted []int64
 	pingErr error
+	getErr  error
 }
 
 func (f *fakeHarbor) Ping(context.Context) error { return f.pingErr }
@@ -32,7 +34,7 @@ func (f *fakeHarbor) CreateRobot(context.Context, string, string, string) (*mode
 }
 
 func (f *fakeHarbor) GetRobotByID(context.Context, int64) (*models.Robot, error) {
-	return f.robot, nil
+	return f.robot, f.getErr
 }
 
 func (f *fakeHarbor) DeleteRobot(_ context.Context, id int64) error {
@@ -231,4 +233,27 @@ func TestHandlersPanicWithoutAuthMiddleware(t *testing.T) {
 	assertPanics("DeleteToken", func() {
 		_, _ = s.DeleteToken(t.Context(), oapi.DeleteTokenRequestObject{})
 	})
+}
+
+func TestDeleteTokenDoesNotRevealWhetherRobotExists(t *testing.T) {
+	hash := sha256.Sum256([]byte("the-real-key"))
+	exists := &fakeHarbor{robot: &models.Robot{Description: deleteTokenPrefix + hex.EncodeToString(hash[:])}}
+	missing := &fakeHarbor{getErr: harbor.ErrRobotNotFound}
+
+	do := func(hc harborClient) *httptest.ResponseRecorder {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/token?robot_id=1", nil)
+		req.Header.Set("Authorization", "Bearer some-wrong-key")
+		return serve(t, hc, req)
+	}
+	wrongKey, unknownID := do(exists), do(missing)
+
+	if wrongKey.Code != http.StatusForbidden || unknownID.Code != http.StatusForbidden {
+		t.Fatalf("status = %d (known robot) and %d (unknown robot), want 403 for both", wrongKey.Code, unknownID.Code)
+	}
+	if wrongKey.Body.String() != unknownID.Body.String() {
+		t.Errorf("bodies differ, which reveals whether the robot exists:\n%q\n%q", wrongKey.Body, unknownID.Body)
+	}
+	if !strings.Contains(unknownID.Body.String(), invalidDeleteCombo) {
+		t.Errorf("body = %q, want it to contain %q", unknownID.Body, invalidDeleteCombo)
+	}
 }

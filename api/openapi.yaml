@@ -68,7 +68,13 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          $ref: "#/components/responses/Error"
+          description: >-
+            Invalid combination of robot ID and delete token.
+            Either the robot account doesn't exist, or the delete token is wrong.
+          content:
+            text/plain:
+              schema:
+                type: string
         "404":
           $ref: "#/components/responses/Error"
         "502":

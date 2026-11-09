@@ -19,6 +19,10 @@ import (
 
 const deleteTokenPrefix = "roboteer-delete-token-sha256:"
 
+// invalidDeleteCombo is the response for both an unknown robot ID and a wrong
+// delete token, so that callers can't probe which robot IDs exist.
+const invalidDeleteCombo = "invalid robot ID and delete token combination"
+
 // untracedPaths are not traced, as they are polled or static.
 // A "*" at the end matches any path with that prefix.
 var untracedPaths = []string{
@@ -181,7 +185,8 @@ func (s *Server) DeleteToken(ctx context.Context, request oapi.DeleteTokenReques
 
 	rb, err := s.harbor.GetRobotByID(ctx, robotID)
 	if errors.Is(err, harbor.ErrRobotNotFound) {
-		return oapi.DeleteToken404TextResponse(err.Error()), nil
+		// Same as for a wrong delete token, so that robot IDs can't be probed
+		return oapi.DeleteToken403TextResponse(invalidDeleteCombo), nil
 	}
 	if err != nil {
 		s.log.ErrorContext(ctx, "get robot account", slog.Any("error", err))
@@ -191,7 +196,7 @@ func (s *Server) DeleteToken(ctx context.Context, request oapi.DeleteTokenReques
 	hash := sha256.Sum256([]byte(token))
 	want := deleteTokenPrefix + hex.EncodeToString(hash[:])
 	if subtle.ConstantTimeCompare([]byte(rb.Description), []byte(want)) != 1 {
-		return oapi.DeleteToken403TextResponse("invalid delete token"), nil
+		return oapi.DeleteToken403TextResponse(invalidDeleteCombo), nil
 	}
 
 	err = s.harbor.DeleteRobot(ctx, robotID)
