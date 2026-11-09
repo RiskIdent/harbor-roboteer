@@ -43,7 +43,10 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClie
 	s := &Server{
 		router: r,
 		server: &http.Server{
-			Handler: NewMiddleware(log).LoggingMiddleware(r),
+			Handler: ChainMiddlewares(r,
+				TracingMiddleware(untracedPaths...),
+				LoggingMiddleware(log),
+			),
 		},
 		listener: l,
 		log:      log,

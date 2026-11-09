@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-func New(level string, format string) *slog.Logger {
+func New(level, format string) *slog.Logger {
 	h := handler(format, stringToLevel(level))
 	return slog.New(h)
 }
