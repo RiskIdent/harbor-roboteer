@@ -32,16 +32,22 @@ podAnnotations: {} # @schema additionalProperties: {type: string}
 # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
 podLabels: {} # @schema additionalProperties: {type: string}
 
-podSecurityContext: {} # @schema $ref: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.PodSecurityContext
-  # fsGroup: 2000
+# Pod-level security settings. Defaults satisfy the "restricted" Pod Security Standard.
+podSecurityContext: # @schema skipProperties; $ref: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.PodSecurityContext
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {} # @schema $ref: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.SecurityContext
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
+# Container-level security settings.
+securityContext: # @schema skipProperties; $ref: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.SecurityContext
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  privileged: false
+  capabilities:
+    drop:
+      - ALL
 
 # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
 service:
