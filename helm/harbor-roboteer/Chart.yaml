@@ -7,4 +7,4 @@ version: 0.1.0 # updated by CI/CD release workflow
 appVersion: "v0.1.0" # updated by CI/CD release workflow
 
 sources:
-  - https://github.com/RiskIdent/harbor-roboteer/
+  - https://github.com/RiskIdent/harbor-roboteer
