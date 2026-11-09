@@ -109,7 +109,7 @@ httpRoute:
 # Requires a CNI that enforces NetworkPolicy.
 networkPolicy:
   # NetworkPolicy enabled.
-  enabled: false
+  enabled: true
   # Peers allowed to reach the http port. Empty allows any source.
   ingressFrom: [] # @schema itemRef: $k8s/_definitions.json#/definitions/io.k8s.api.networking.v1.NetworkPolicyPeer
     # - namespaceSelector:
