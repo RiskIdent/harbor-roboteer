@@ -43,7 +43,7 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, appVersion st
 	r := http.NewServeMux()
 	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 	if err != nil {
-		return &Server{}, fmt.Errorf("couldn't create the listener with addr %s, error: %w", addr, err)
+		return nil, fmt.Errorf("couldn't create the listener with addr %s, error: %w", addr, err)
 	}
 	s := &Server{
 		router: r,
