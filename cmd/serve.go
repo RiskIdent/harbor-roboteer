@@ -11,6 +11,7 @@ import (
 	"github.com/RiskIdent/harbor-roboteer/internal/jwks"
 	"github.com/RiskIdent/harbor-roboteer/internal/logger"
 	"github.com/RiskIdent/harbor-roboteer/internal/server"
+	"github.com/RiskIdent/harbor-roboteer/internal/tracing"
 	"github.com/lestrrat-go/jwx/v4/jwt"
 	"github.com/spf13/cobra"
 )
@@ -41,6 +42,13 @@ to quickly create a Cobra application.`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		ctx := cmd.Context()
 		log := logger.New(logLevel, logFormat)
+
+		traceProvider, err := tracing.NewTracerProvider(ctx, log, cmd.Root().Version)
+		if err != nil {
+			return err
+		}
+		defer tracing.ShutdownTracer(context.WithoutCancel(ctx), log, traceProvider)
+
 		hc, err := harbor.New(
 			cmp.Or(harborURL, os.Getenv("HARBOR_URL")),
 			cmp.Or(harborUsername, os.Getenv("HARBOR_USERNAME")),

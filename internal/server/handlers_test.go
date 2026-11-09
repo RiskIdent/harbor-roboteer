@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -20,7 +21,10 @@ const testVersion = "v1.2.3-test"
 type fakeHarbor struct {
 	robot   *models.Robot
 	deleted []int64
+	pingErr error
 }
+
+func (f *fakeHarbor) Ping(context.Context) error { return f.pingErr }
 
 func (f *fakeHarbor) CreateRobot(context.Context, string, string, string) (*models.RobotCreated, error) {
 	return nil, nil
@@ -187,5 +191,24 @@ func TestOpenAPIYAMLUsesAppVersion(t *testing.T) {
 	got := strings.Replace(rec.Body.String(), line, "  version: 0.0.0", 1)
 	if got != string(api.Spec) {
 		t.Error("served spec differs from api/openapi.yaml in more than the version")
+	}
+}
+
+func TestHealth(t *testing.T) {
+	tests := []struct {
+		name       string
+		pingErr    error
+		wantStatus int
+	}{
+		{"harbor reachable", nil, http.StatusOK},
+		{"harbor unreachable", errors.New("connection refused"), http.StatusServiceUnavailable},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := serve(t, &fakeHarbor{pingErr: tc.pingErr}, httptest.NewRequest(http.MethodGet, "/health", nil))
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d, body: %s", rec.Code, tc.wantStatus, rec.Body)
+			}
+		})
 	}
 }

@@ -59,6 +59,9 @@ type PostTokenJSONRequestBody = PostTokenRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetHealth Health check
+	// (GET /health)
+	GetHealth(w http.ResponseWriter, r *http.Request)
 	// DeleteToken Delete robot account
 	// (DELETE /token)
 	DeleteToken(w http.ResponseWriter, r *http.Request, params DeleteTokenParams)
@@ -75,6 +78,20 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetHealth operation middleware
+func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHealth(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // DeleteToken operation middleware
 func (siw *ServerInterfaceWrapper) DeleteToken(w http.ResponseWriter, r *http.Request) {
@@ -245,6 +262,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/token", wrapper.DeleteToken)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/token", wrapper.PostToken)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/health", wrapper.GetHealth)
 
 	return m
 }
@@ -258,6 +276,32 @@ type UnauthorizedTextResponse struct {
 	Body string
 
 	Headers UnauthorizedResponseHeaders
+}
+
+type GetHealthRequestObject struct {
+}
+
+type GetHealthResponseObject interface {
+	VisitGetHealthResponse(w http.ResponseWriter) error
+}
+
+type GetHealth200Response struct {
+}
+
+func (response GetHealth200Response) VisitGetHealthResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type GetHealth503TextResponse ErrorTextResponse
+
+func (response GetHealth503TextResponse) VisitGetHealthResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(503)
+
+	_, err := w.Write([]byte(fmt.Sprint(response)))
+	return err
 }
 
 type DeleteTokenRequestObject struct {
@@ -405,6 +449,9 @@ func (response PostToken502TextResponse) VisitPostTokenResponse(w http.ResponseW
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetHealth Health check
+	// (GET /health)
+	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
 	// DeleteToken Delete robot account
 	// (DELETE /token)
 	DeleteToken(ctx context.Context, request DeleteTokenRequestObject) (DeleteTokenResponseObject, error)
@@ -450,6 +497,30 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetHealth operation middleware
+func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
+	var request GetHealthRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetHealth(ctx, request.(GetHealthRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetHealth")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetHealthResponseObject); ok {
+		if err := validResponse.VisitGetHealthResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // DeleteToken operation middleware
@@ -514,24 +585,25 @@ func (sh *strictHandler) PostToken(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"vFbdbts4E30Vgl+B3siSmuRbtL7aNM5u3C7aIHaRiyBY09LYYiKRCjmMoy307ouhFFuyvE0L7PZOP+SZ",
-	"mTOHZ/iVJ7ootQKFlo+/cgO21MqCfzk3Rht6SLRCUEiPCE8YlbmQit5skkEh/PeqBD7mFo1Ua17XdcBT",
-	"sImRJUqt+LgFqwP+RQmHmTbyL0j/LfAeZsAzECkYX8P19fXo1GEGCmUiEPrA8CSKMifs9yAMGB4MY1G0",
-	"ZocHvNQW5/oe1BU8OLA+79LoEgzKhjYlCh+mn+KVXmpkIkm0U8hoTcgmsBIuR8tQM8yAIeG+tmxh3XLB",
-	"klzIIuRBJ8uiGhnCGbU4Ix9rkHRAGd1BgsM0LoRZasPa/xQ4MSAQfHzTy1Gq8AAfATfw4KSh5t1s49xu",
-	"F+ql/1AHXaYaUQ2pSiEHBL/oQJ8D7hOiP68MrPiY/y/ayTVqmxJ5Zs8MpNRjkdtBkg1K0It2KOEB0CBf",
-	"6RW70qYQyMdcKvzlZMeRVAhr8CIvhbUbbdKDVTkL5lkku976LF8d7PDozTsr7tL7oxf7IVPewe/kMayX",
-	"ZA2JMxKrGTHZVDjxHH2Eil6W/lD89lyuLsWDA75/+OYZsEWH2wUzgM4oSNmyYovLz7M5i7y0FyQo3zZK",
-	"ZLl35DLEkuj5cD0/EJy+7keeyTVF8dhsZXThVZyIPAcTMAjXIRPsd4kXbslOE9pk2efp5KzZ8R3JEEnw",
-	"hERnPtGJZ8iZvP1vx1G0lpi5ZZjoIrqS9n5K2okyf8iaRkIjCKlW+tntRHMwoRCSoMpcIEnqVyPtvSQA",
-	"guNBayT8ajr7yKaT809zPjC+iU5cAQoFvbOVNp6BvfivLbuYzy/Z1flszk4vp1R4LhNoj2Qb5rQUSQbs",
-	"KIx50ClyHEWbzSYU/m+ozTpqt9roj+nZ+afZ+egojMMMi5zSQ4lezfsUBPwRjG2SjsM4jGmxLkGJUvIx",
-	"Pw7j8NjrFTPPciOYnUcMnewsB6GYK1lraX3zwkwgq7RjmXiE1uPSkPVc2DJhgAmHuhA0HfK8YgmhQspc",
-	"GbClQ7YEi0x6hzZQ6EdvlAWTRQGpFAh5xTYZKB+K0FKtgPjVJRjflGlKbeo4DxVpRAHoJ9TNt+fEdMJJ",
-	"O3zMHxyYaicKX+2f/rjvzj8aB0FnvL1oVPVt0B/5R/HJkGl9T806ieN/cuItRLSd8ifxm5dX98a233T8",
-	"QyFOfmD1/+Oj717dsUbfoY4p3twSZ9YVhTDVtrN98fkBoO2B6fvFAvtwPW9Gu+1MX8EUbA4qeaCl7Vht",
-	"Ww8W3+u02rtKibLM6cIjtYrurN67UH1rnA4uOHVd74usHsgm/i/iNxEOXfh+oiTf/SSR+bG3L6+zRh57",
-	"8mr2msdnB+m5da4TkWfa4vht/Dbm9W399wA=",
+	"vFbdbts4E30Vgl+B3siSmqQfWl9tGmcbt4s2iF3kogjWNDW2WEukQo7iaAu9+2IoJbYlbdMARe8skzwz",
+	"c+bMz3cuTV4YDRodH3/nFlxhtAP/cW6tsfRDGo2gkX4i3GNUZEJp+nIyhVz4/6sC+Jg7tEqveV3XAU/A",
+	"SasKVEbzcQtWB/yLFiWmxqp/IPlV4AeYAU9BJGB9DNfX16PTElPQqKRAOASGe5EXGWG/A2HB8qBvi6w1",
+	"LzzgpXE4NxvQV3BbgvN+F9YUYFE1tGmRezOHLl6ZpUEmpDSlRkZ3QjaBlSgzdAwNwxQYEu5LxxauXC6Y",
+	"zITKQx7seZlXI0s4oxZn5G31nA7Io28gse/GhbBLY1l7ToalBYHg7dsDH5UOB/gIuIXbUllK3tdHOzeP",
+	"F83S/1EH+0w1oupTlUAGCP7SQJ4D7h2ikxcWVnzM/xft5Bq1SYk8s2cWEsqxyFzPyQYlOLA25HAPqOev",
+	"8opdGZsL5GOuNP7/ZMeR0ghr8CIvhHNbY5PBqEoH9kEku9x6L18MZnj06q0T35LN0ZP5UAnfw9/zox8v",
+	"yRpkaRVWM2KyiXDiOfoIFX0sfVH8+RCuKcRtCbxbfPMU2GKP2wWzgKXVkLBlxRaXn2dzFnlpL0hQPm3k",
+	"yLJTciliQfR8uJ4PGKd/u5Znak1WPDZbWZN7FUuRZWADBuE6ZIK9V3hRLtmppEeOfZ5OzpoXP+EMkQT3",
+	"SHRmEyM9Q6XN2nM3jqK1wrRchtLk0ZVymylpJ0p9kTWJhEYQSq/MQ7cTTWFCLhRBFZlAktQfVrmNIgCC",
+	"40HbSPjVdPaRTSfnn+a81/gmRpY5aBT0zVbGegY69l86djGfX7Kr89mcnV5OKfBMSWhLsjVzWgiZAjsK",
+	"Yx7sBTmOou12Gwp/Ghq7jtqnLvprenb+aXY+OgrjMMU8I/dQoVdzl4KA34F1jdNxGIcxXTYFaFEoPubH",
+	"YRwee71i6lmOUhAZpvRzDQN97CwFuXEMU4HdcJkUmlkQMmVNt6N4qYo9SdOEj/l7wIsGPzgceUdxPNAz",
+	"/dWKPH4dH/9XO3rEidpRRwVW5rmw1SMGk+S2P2oqYtcEB0LMQGhWFm0Une7sI69MyVJxB20TT0J2MGYc",
+	"ExaYKNHkgsZfllVMEiokrCwCtiyRLcEhU34EWcjNnZ8EOVN5DokSCFnFtilob4rQEqOhT+hkr7VSFq3I",
+	"Af0I/vrjQTidcCoOPua3Jdhqp3of7d++n+0aHNoSgr35/WQnrm96CT7pM202lNuTOP7p3NLtV0/fPthL",
+	"/KPjZ5k4ecbt1/HRs6TZ9n6fob2u//WmvtkXbnN0KD4/4YwbKMsvDtiH63mzu7i99UIwDdtBJfe09Lg3",
+	"tKkHh+9MUnV2RVEUGW10yujomzOdjfFH+0Jvg6vruiuyergv/Gr7jYWhjfY3SvLtbxKZn+tdeZ018ujI",
+	"q3lr7x46yME4yowUWWocjt/Eb2Je39T/DgA=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

@@ -74,6 +74,17 @@ paths:
         "502":
           $ref: "#/components/responses/Error"
 
+  /health:
+    get:
+      operationId: getHealth
+      summary: Health check
+      description: Checks that harbor-roboteer can reach Harbor.
+      responses:
+        "200":
+          description: Healthy
+        "503":
+          $ref: "#/components/responses/Error"
+
 components:
   securitySchemes:
     JWT:

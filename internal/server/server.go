@@ -28,6 +28,8 @@ type harborClient interface {
 	CreateRobot(ctx context.Context, name, project, description string) (*models.RobotCreated, error)
 	GetRobotByID(ctx context.Context, id int64) (*models.Robot, error)
 	DeleteRobot(ctx context.Context, id int64) error
+
+	Ping(ctx context.Context) error
 }
 
 type IServer interface {
@@ -43,7 +45,10 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, appVersion st
 	s := &Server{
 		router: r,
 		server: &http.Server{
-			Handler: NewMiddleware(log).LoggingMiddleware(r),
+			Handler: ChainMiddlewares(r,
+				TracingMiddleware(untracedPaths...),
+				LoggingMiddleware(log),
+			),
 		},
 		listener: l,
 		log:      log,

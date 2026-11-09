@@ -19,6 +19,17 @@ import (
 
 const deleteTokenPrefix = "roboteer-delete-token-sha256:"
 
+// untracedPaths are not traced, as they are polled or static.
+// A "*" at the end matches any path with that prefix.
+var untracedPaths = []string{
+	"/health",
+	"/openapi.json",
+	"/openapi.yaml",
+	"/",
+	"/docs",
+	"/docs/*",
+}
+
 func (s *Server) registerHandlers(appVersion string) error {
 	specJSON, err := openAPIJSON(appVersion)
 	if err != nil {
@@ -86,6 +97,15 @@ func (s *Server) authenticate(next oapi.StrictHandlerFunc, operationID string) o
 		}
 		return next(ctx, w, r, req)
 	}
+}
+
+// GetHealth is the handler for "GET /health"
+func (s *Server) GetHealth(ctx context.Context, _ oapi.GetHealthRequestObject) (oapi.GetHealthResponseObject, error) {
+	if err := s.harbor.Ping(ctx); err != nil {
+		s.log.ErrorContext(ctx, "ping harbor", slog.Any("error", err))
+		return oapi.GetHealth503TextResponse("not healthy"), nil
+	}
+	return oapi.GetHealth200Response{}, nil
 }
 
 // PostToken is the handler for "POST /token"
