@@ -25,6 +25,9 @@
         }
       }
     },
+    "commonLabels": {
+      "type": "object"
+    },
     "env": {
       "type": "array"
     },
