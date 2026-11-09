@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://github.com/losisin/helm-values-schema-json/raw/refs/heads/main/config.schema.json
+
+draft: 7
+indent: 2
+useHelmDocs: true
+k8sSchemaVersion: v1.33.5
+
+bundle: true
+bundleRoot: ../..
+bundleWithoutID: true
+
+schemaRoot:
+  additionalProperties: false
