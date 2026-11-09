@@ -73,7 +73,7 @@ func TestDeleteToken(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			hc.deleted = nil
-			req := httptest.NewRequest(http.MethodDelete, tc.target, nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, tc.target, nil)
 			if tc.auth != "" {
 				req.Header.Set("Authorization", tc.auth)
 			}
@@ -92,7 +92,7 @@ func TestDeleteToken(t *testing.T) {
 }
 
 func TestPostTokenRejectsMissingJWT(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/token", strings.NewReader(`{"project":"p"}`))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/token", strings.NewReader(`{"project":"p"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := serve(t, &fakeHarbor{}, req)
 	if rec.Code != http.StatusUnauthorized {
@@ -104,7 +104,7 @@ func TestPostTokenRejectsMissingJWT(t *testing.T) {
 }
 
 func TestGetOpenAPISpec(t *testing.T) {
-	rec := serve(t, &fakeHarbor{}, httptest.NewRequest(http.MethodGet, "/openapi.json", nil))
+	rec := serve(t, &fakeHarbor{}, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/openapi.json", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200, body: %s", rec.Code, rec.Body)
 	}
@@ -147,7 +147,7 @@ func TestDocs(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.target, func(t *testing.T) {
-			rec := serve(t, &fakeHarbor{}, httptest.NewRequest(http.MethodGet, tc.target, nil))
+			rec := serve(t, &fakeHarbor{}, httptest.NewRequestWithContext(t.Context(), http.MethodGet, tc.target, nil))
 			if rec.Code != tc.wantStatus {
 				t.Fatalf("status = %d, want %d", rec.Code, tc.wantStatus)
 			}
@@ -162,7 +162,7 @@ func TestDocs(t *testing.T) {
 }
 
 func TestGetOpenAPISpecYAML(t *testing.T) {
-	rec := serve(t, &fakeHarbor{}, httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil))
+	rec := serve(t, &fakeHarbor{}, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/openapi.yaml", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
@@ -180,7 +180,7 @@ func TestGetOpenAPISpecYAML(t *testing.T) {
 }
 
 func TestOpenAPIYAMLUsesAppVersion(t *testing.T) {
-	rec := serve(t, &fakeHarbor{}, httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil))
+	rec := serve(t, &fakeHarbor{}, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/openapi.yaml", nil))
 
 	// Quoted, so that versions like "1.10" stay strings
 	line := `  version: "` + testVersion + `"`
@@ -205,7 +205,7 @@ func TestHealth(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			rec := serve(t, &fakeHarbor{pingErr: tc.pingErr}, httptest.NewRequest(http.MethodGet, "/health", nil))
+			rec := serve(t, &fakeHarbor{pingErr: tc.pingErr}, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/health", nil))
 			if rec.Code != tc.wantStatus {
 				t.Fatalf("status = %d, want %d, body: %s", rec.Code, tc.wantStatus, rec.Body)
 			}

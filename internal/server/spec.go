@@ -16,14 +16,14 @@ import (
 
 // openAPIJSON renders the OpenAPI spec embedded in the generated code
 func openAPIJSON(appVersion string) ([]byte, error) {
-	swagger, err := oapi.GetSwagger()
+	spec, err := oapi.GetSpec()
 	if err != nil {
 		return nil, fmt.Errorf("load embedded OpenAPI spec: %w", err)
 	}
-	if appVersion != "" && swagger.Info != nil {
-		swagger.Info.Version = appVersion
+	if appVersion != "" && spec.Info != nil {
+		spec.Info.Version = appVersion
 	}
-	b, err := json.MarshalIndent(swagger, "", "  ")
+	b, err := json.MarshalIndent(spec, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal OpenAPI spec: %w", err)
 	}
