@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/RiskIdent/harbor-roboteer/api"
+	"github.com/RiskIdent/harbor-roboteer/internal/server/oapi"
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/models"
 )
 
@@ -211,4 +212,23 @@ func TestHealth(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandlersPanicWithoutAuthMiddleware(t *testing.T) {
+	s := &Server{}
+	assertPanics := func(name string, fn func()) {
+		t.Helper()
+		defer func() {
+			if recover() == nil {
+				t.Errorf("%s: want a panic without the authenticate middleware", name)
+			}
+		}()
+		fn()
+	}
+	assertPanics("PostToken", func() {
+		_, _ = s.PostToken(t.Context(), oapi.PostTokenRequestObject{Body: &oapi.PostTokenRequest{Project: "p"}})
+	})
+	assertPanics("DeleteToken", func() {
+		_, _ = s.DeleteToken(t.Context(), oapi.DeleteTokenRequestObject{})
+	})
 }

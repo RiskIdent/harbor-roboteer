@@ -66,6 +66,27 @@ type (
 	deleteKeyCtxKey struct{}
 )
 
+// contextJWT returns the token that [Server.authenticate] has verified.
+// It panics if there is none, as that means the middleware isn't registered.
+func contextJWT(ctx context.Context) jwt.Token {
+	tok, ok := ctx.Value(jwtCtxKey{}).(jwt.Token)
+	if !ok {
+		panic("no verified JWT in context, is the authenticate middleware registered?")
+	}
+	return tok
+}
+
+// contextDeleteToken returns the delete token that [Server.authenticate] has
+// extracted. It panics if there is none, as that means the middleware isn't
+// registered.
+func contextDeleteToken(ctx context.Context) string {
+	token, ok := ctx.Value(deleteKeyCtxKey{}).(string)
+	if !ok {
+		panic("no delete token in context, is the authenticate middleware registered?")
+	}
+	return token
+}
+
 func unauthorized(msg string) oapi.UnauthorizedTextResponse {
 	scheme := "Bearer"
 	return oapi.UnauthorizedTextResponse{
@@ -110,7 +131,7 @@ func (s *Server) GetHealth(ctx context.Context, _ oapi.GetHealthRequestObject) (
 
 // PostToken is the handler for "POST /token"
 func (s *Server) PostToken(ctx context.Context, request oapi.PostTokenRequestObject) (oapi.PostTokenResponseObject, error) {
-	tok := ctx.Value(jwtCtxKey{}).(jwt.Token)
+	tok := contextJWT(ctx)
 	req := request.Body
 
 	if err := validation.ValidateStruct(req,
@@ -155,7 +176,7 @@ func (s *Server) PostToken(ctx context.Context, request oapi.PostTokenRequestObj
 
 // DeleteToken is the handler for "DELETE /token"
 func (s *Server) DeleteToken(ctx context.Context, request oapi.DeleteTokenRequestObject) (oapi.DeleteTokenResponseObject, error) {
-	token := ctx.Value(deleteKeyCtxKey{}).(string)
+	token := contextDeleteToken(ctx)
 	robotID := request.Params.RobotId
 
 	rb, err := s.harbor.GetRobotByID(ctx, robotID)
