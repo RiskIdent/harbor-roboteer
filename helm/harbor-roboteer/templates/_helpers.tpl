@@ -36,8 +36,8 @@ Common labels
 {{- define "harbor-roboteer.labels" -}}
 helm.sh/chart: {{ include "harbor-roboteer.chart" . }}
 {{ include "harbor-roboteer.selectorLabels" . }}
-{{- if .Chart.AppVersion }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- with .Chart.AppVersion }}
+app.kubernetes.io/version: {{ regexReplaceAll "@.*$" . "" | trunc 63 | trimSuffix "-" | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- with .Values.commonLabels }}
