@@ -183,12 +183,12 @@ func TestOpenAPIYAMLUsesAppVersion(t *testing.T) {
 	rec := serve(t, &fakeHarbor{}, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/openapi.yaml", nil))
 
 	// Quoted, so that versions like "1.10" stay strings
-	line := `  version: "` + testVersion + `"`
+	line := `  version: "` + testVersion + `" ` + versionMarker
 	if !strings.Contains(rec.Body.String(), line) {
 		t.Fatalf("served spec is missing %q", line)
 	}
 	// Apart from the version, nothing may differ from the source
-	got := strings.Replace(rec.Body.String(), line, "  version: 0.0.0", 1)
+	got := strings.Replace(rec.Body.String(), `"`+testVersion+`"`, "0.0.0", 1)
 	if got != string(api.Spec) {
 		t.Error("served spec differs from api/openapi.yaml in more than the version")
 	}
