@@ -12,6 +12,15 @@ shfmt = "3.14.1"
 typos = "1.51.1"
 zizmor = "1.31.1"
 
+[tasks."generate:helm-schema"]
+description = "Generate Helm schemas"
+run = '''
+helm schema \
+  --config helm/harbor-roboteer/.schema.yaml \
+  -f helm/harbor-roboteer/values.yaml \
+  -o helm/harbor-roboteer/values.schema.json
+'''
+
 [tasks.pre-commit]
 description = "Runs the hk pre-commit checks, as if you were creating a Git commit"
 run = "hk run pre-commit"
