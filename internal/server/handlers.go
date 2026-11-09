@@ -7,14 +7,13 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
 	"github.com/RiskIdent/harbor-roboteer/internal/server/oapi"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
-	"github.com/lestrrat-go/jwx/v4/jwt"
 )
 
 const deleteTokenPrefix = "roboteer-delete-token-sha256:"
@@ -60,35 +59,18 @@ func (s *Server) registerHandlers(appVersion string) error {
 	// "GET /docs" is redirected to "/docs/" by the mux
 	s.router.Handle("GET /docs/", docsHandler())
 
+	spec, err := oapi.GetSpec()
+	if err != nil {
+		return fmt.Errorf("load embedded OpenAPI spec: %w", err)
+	}
+	s.schemes, err = operationSchemes(spec)
+	if err != nil {
+		return fmt.Errorf("apply security from OpenAPI spec: %w", err)
+	}
+
 	strict := oapi.NewStrictHandler(s, []oapi.StrictMiddlewareFunc{s.authenticate})
 	oapi.HandlerWithOptions(strict, oapi.StdHTTPServerOptions{BaseRouter: s.router})
 	return nil
-}
-
-type (
-	jwtCtxKey       struct{}
-	deleteKeyCtxKey struct{}
-)
-
-// contextJWT returns the token that [Server.authenticate] has verified.
-// It panics if there is none, as that means the middleware isn't registered.
-func contextJWT(ctx context.Context) jwt.Token {
-	tok, ok := ctx.Value(jwtCtxKey{}).(jwt.Token)
-	if !ok {
-		panic("no verified JWT in context, is the authenticate middleware registered?")
-	}
-	return tok
-}
-
-// contextDeleteToken returns the delete token that [Server.authenticate] has
-// extracted. It panics if there is none, as that means the middleware isn't
-// registered.
-func contextDeleteToken(ctx context.Context) string {
-	token, ok := ctx.Value(deleteKeyCtxKey{}).(string)
-	if !ok {
-		panic("no delete token in context, is the authenticate middleware registered?")
-	}
-	return token
 }
 
 func unauthorized(msg string) oapi.UnauthorizedTextResponse {
@@ -96,31 +78,6 @@ func unauthorized(msg string) oapi.UnauthorizedTextResponse {
 	return oapi.UnauthorizedTextResponse{
 		Body:    msg,
 		Headers: oapi.UnauthorizedResponseHeaders{WWWAuthenticate: &scheme},
-	}
-}
-
-// authenticate enforces the security schemes declared in api/openapi.yaml.
-// The generated code does not do it for us, so it is keyed on the generated
-// operation names (Go-cased operationId from the spec).
-func (s *Server) authenticate(next oapi.StrictHandlerFunc, operationID string) oapi.StrictHandlerFunc {
-	return func(ctx context.Context, w http.ResponseWriter, r *http.Request, req any) (any, error) {
-		switch operationID {
-		case "PostToken": // security: JWT
-			tok, err := jwt.ParseRequest(r, s.jwtOpts...)
-			if err != nil {
-				s.log.ErrorContext(ctx, "parse token")
-				s.log.DebugContext(ctx, "reject token", slog.Any("error", err))
-				return oapi.PostToken401TextResponse{UnauthorizedTextResponse: unauthorized("invalid or missing token")}, nil
-			}
-			ctx = context.WithValue(ctx, jwtCtxKey{}, tok)
-		case "DeleteToken": // security: DeleteKey
-			token, ok := bearerToken(r)
-			if !ok {
-				return oapi.DeleteToken401TextResponse{UnauthorizedTextResponse: unauthorized("Authorization: Bearer <delete token> header is required")}, nil
-			}
-			ctx = context.WithValue(ctx, deleteKeyCtxKey{}, token)
-		}
-		return next(ctx, w, r, req)
 	}
 }
 
@@ -208,13 +165,4 @@ func (s *Server) DeleteToken(ctx context.Context, request oapi.DeleteTokenReques
 		return oapi.DeleteToken502TextResponse("failed to delete robot account in Harbor"), nil
 	}
 	return oapi.DeleteToken204Response{}, nil
-}
-
-func bearerToken(r *http.Request) (string, bool) {
-	scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
-	if !ok || !strings.EqualFold(scheme, "Bearer") {
-		return "", false
-	}
-	token = strings.TrimLeft(token, " ")
-	return token, token != ""
 }

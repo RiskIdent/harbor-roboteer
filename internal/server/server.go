@@ -23,7 +23,8 @@ type Server struct {
 	listener net.Listener
 	log      *slog.Logger
 	harbor   harborClient
-	jwtOpts  []jwt.ParseOption // key set, issuer and audience to verify caller tokens
+	jwtOpts  []jwt.ParseOption         // key set, issuer and audience to verify caller tokens
+	schemes  map[string]securityScheme // by operation name
 }
 
 type harborClient interface {
