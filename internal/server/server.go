@@ -15,6 +15,8 @@ import (
 
 //go:generate go tool oapi-codegen -config oapi/cfg.yaml ../../api/openapi.yaml
 
+const readHeaderTimeout = 10 * time.Second
+
 type Server struct {
 	router   *http.ServeMux
 	server   *http.Server
@@ -45,6 +47,8 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, appVersion st
 	s := &Server{
 		router: r,
 		server: &http.Server{
+			// Closes connections that are too slow to send their request headers
+			ReadHeaderTimeout: readHeaderTimeout,
 			Handler: ChainMiddlewares(r,
 				TracingMiddleware(untracedPaths...),
 				LoggingMiddleware(log),

@@ -44,10 +44,7 @@ func (f *fakeHarbor) DeleteRobot(_ context.Context, id int64) error {
 
 func serve(t *testing.T, hc harborClient, req *http.Request) *httptest.ResponseRecorder {
 	t.Helper()
-	s, err := NewServer(t.Context(), ":0", slog.New(slog.DiscardHandler), testVersion, hc)
-	if err != nil {
-		t.Fatal(err)
-	}
+	s := mustNewServer(t, ":0", slog.New(slog.DiscardHandler), testVersion, hc)
 	t.Cleanup(func() { _ = s.listener.Close() })
 	rec := httptest.NewRecorder()
 	s.router.ServeHTTP(rec, req)
