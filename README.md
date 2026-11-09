@@ -4,38 +4,8 @@ Service to run next to Harbor to map OIDC to robot accounts
 
 ## Endpoints
 
-### `POST /token`
-
-Create a new Harbor `robot$...` account based on the JWT.
-
-```bash
-curl -X POST https://harbor-roboteer.example.com/token \
-  -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"
-```
-
-Response `200 OK`:
-
-```json
-{
-  "robot": {
-    "username": "robot$github-actions+my-repo",
-    "password": "..."
-  },
-  "deleteToken": "..."
-}
-```
-
-### `DELETE /token`
-
-Clean up robot account at the end of workflow.
-
-```bash
-curl -X DELETE https://harbor-roboteer.example.com/token \
-  --url-query username='robot$github-actions+my-repo' \
-  -H "Authorization: Bearer $DELETE_TOKEN"
-```
-
-Response `201 Created`
+See <https://riskident.github.io/harbor-roboteer/>, which is generated from
+[`docs/openapi.yaml`](docs/openapi.yaml).
 
 ## How it works
 
@@ -97,6 +67,21 @@ mise run pre-commit:install:global
 # otherwise:
 mise run pre-commit:install
 ```
+
+### API docs
+
+OpenAPI spec in [`docs/openapi.yaml`](docs/openapi.yaml) is hand-written.
+Nothing is generated from it.
+It is only used by [Redoc](https://github.com/Redocly/redoc) in GitHub Pages
+at <https://riskident.github.io/harbor-roboteer/>.
+
+```bash
+npm install
+npm run docs:serve
+```
+
+The `version` in the spec is bumped by release-please, via the
+`x-release-please-version` comment.
 
 ## Prior art
 

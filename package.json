@@ -1,0 +1,14 @@
+{
+  "name": "harbor-roboteer-docs",
+  "private": true,
+  "description": "Tooling to build the API docs from docs/openapi.yaml",
+  "scripts": {
+    "docs:build": "redocly build-docs docs/openapi.yaml --output dist/docs/index.html",
+    "docs:serve": "npm run docs:build && http-server dist/docs",
+    "docs:lint": "redocly lint docs/openapi.yaml --lint-config=error"
+  },
+  "devDependencies": {
+    "@redocly/cli": "2.77.0",
+    "http-server": "14.1.1"
+  }
+}
