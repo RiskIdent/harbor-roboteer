@@ -25,6 +25,8 @@
 [files]
 extend-exclude = [
 	# gitignore syntax
+	# generated, and upstream k8s descriptions contain "ANDed"; fixing them breaks the helm-schema CI check
+	"helm/**/values.schema.json",
 	#"*.sops.yml",
 ]
 
