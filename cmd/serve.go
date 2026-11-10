@@ -63,14 +63,14 @@ to quickly create a Cobra application.`,
 		if issuer == "" || audience == "" {
 			return errors.New("--oidc-issuer and --oidc-audience are required")
 		}
-		keys, stopJWKS, err := jwks.New(ctx, issuer)
+		keys, err := jwks.New(ctx, issuer)
 		if err != nil {
 			return err
 		}
-		defer func() { _ = stopJWKS(context.WithoutCancel(ctx)) }()
+		defer func() { _ = keys.Close(context.WithoutCancel(ctx)) }()
 
 		s, err := server.NewServer(ctx, addr, log, hc,
-			jwt.WithKeySet(keys),
+			jwt.WithKeySet(keys.Set),
 			jwt.WithIssuer(issuer),
 			jwt.WithAudience(audience),
 		)
