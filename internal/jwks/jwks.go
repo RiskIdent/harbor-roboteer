@@ -16,6 +16,15 @@ import (
 
 var firstFetchTimeout = 30 * time.Second
 
+type Keys struct {
+	jwk.Set
+	cache *jwkfetch.Cache
+}
+
+func (k *Keys) Close(ctx context.Context) error {
+	return k.cache.Shutdown(ctx)
+}
+
 // discover reads the issuer's OpenID configuration and returns its JWKS URL.
 func discover(ctx context.Context, issuer string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, firstFetchTimeout)
@@ -56,15 +65,15 @@ func discover(ctx context.Context, issuer string) (string, error) {
 
 // New discovers the issuer's JWKS URL and keeps its key set fresh until stop is called.
 // It fails if discovery or the first key fetch fails, so a bad issuer stops startup.
-func New(ctx context.Context, issuer string) (jwk.Set, func(context.Context) error, error) {
+func New(ctx context.Context, issuer string) (*Keys, error) {
 	jwksURL, err := discover(ctx, issuer)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	cache, err := jwkfetch.NewCache(ctx, httprc.NewClient())
 	if err != nil {
-		return nil, nil, fmt.Errorf("start jwks cache: %w", err)
+		return nil, fmt.Errorf("start jwks cache: %w", err)
 	}
 
 	regCtx, cancel := context.WithTimeout(ctx, firstFetchTimeout)
@@ -74,13 +83,16 @@ func New(ctx context.Context, issuer string) (jwk.Set, func(context.Context) err
 		jwkfetch.WithMaxInterval(25*time.Hour),
 	); err != nil {
 		_ = cache.Shutdown(context.WithoutCancel(ctx))
-		return nil, nil, fmt.Errorf("fetch jwks %s: %w", jwksURL, err)
+		return nil, fmt.Errorf("fetch jwks %s: %w", jwksURL, err)
 	}
 
 	set, err := cache.CachedSet(jwksURL)
 	if err != nil {
 		_ = cache.Shutdown(context.WithoutCancel(ctx))
-		return nil, nil, fmt.Errorf("get cached jwks %s: %w", jwksURL, err)
+		return nil, fmt.Errorf("get cached jwks %s: %w", jwksURL, err)
 	}
-	return set, cache.Shutdown, nil
+	return &Keys{
+		set,
+		cache,
+	}, nil
 }
