@@ -58,12 +58,12 @@ func TestNew(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(keys)
 	}))
 
-	set, stop, err := New(t.Context(), issuer)
+	set, err := New(t.Context(), issuer)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := stop(context.Background()); err != nil {
+		if err := set.Close(context.Background()); err != nil {
 			t.Error(err)
 		}
 	})
@@ -75,7 +75,7 @@ func TestNew(t *testing.T) {
 
 func TestNewFailsOnIssuerMismatch(t *testing.T) {
 	issuer := fakeProvider(t, "https://evil.example.com", http.NotFoundHandler())
-	if _, _, err := New(t.Context(), issuer); err == nil {
+	if _, err := New(t.Context(), issuer); err == nil {
 		t.Fatal("want error when the provider reports a different issuer")
 	}
 }
@@ -83,7 +83,7 @@ func TestNewFailsOnIssuerMismatch(t *testing.T) {
 func TestNewFailsWhenNoDiscovery(t *testing.T) {
 	srv := httptest.NewServer(http.NotFoundHandler())
 	defer srv.Close()
-	if _, _, err := New(t.Context(), srv.URL); err == nil {
+	if _, err := New(t.Context(), srv.URL); err == nil {
 		t.Fatal("want error when the discovery endpoint returns 404")
 	}
 }
@@ -93,7 +93,7 @@ func TestNewFailsWhenKeysUnreachable(t *testing.T) {
 	t.Cleanup(func() { firstFetchTimeout = 30 * time.Second })
 
 	issuer := fakeProvider(t, "", http.NotFoundHandler())
-	if _, _, err := New(t.Context(), issuer); err == nil {
+	if _, err := New(t.Context(), issuer); err == nil {
 		t.Fatal("want error when the JWKS endpoint returns 404")
 	}
 }
