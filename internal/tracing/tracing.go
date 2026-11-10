@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/RiskIdent/harbor-roboteer/internal/version"
 	"github.com/go-logr/logr"
 	"go.opentelemetry.io/contrib/exporters/autoexport"
 	"go.opentelemetry.io/otel"
@@ -20,7 +21,7 @@ import (
 )
 
 // Initializes an OTLP exporter, and configures the corresponding trace provider.
-func NewTracerProvider(ctx context.Context, logger *slog.Logger, version string) (*tracesdk.TracerProvider, error) {
+func NewTracerProvider(ctx context.Context, logger *slog.Logger) (*tracesdk.TracerProvider, error) {
 	logger = logger.WithGroup("otel")
 	otel.SetLogger(logr.FromSlogHandler(logger.Handler()).V(8))
 
@@ -39,10 +40,7 @@ func NewTracerProvider(ctx context.Context, logger *slog.Logger, version string)
 
 	attributes := []attribute.KeyValue{
 		semconv.ServiceName("harbor-roboteer"),
-	}
-
-	if version != "" {
-		attributes = append(attributes, semconv.ServiceVersion(version))
+		semconv.ServiceVersion(version.Get()),
 	}
 
 	res, err := resource.New(ctx,

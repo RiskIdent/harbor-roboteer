@@ -46,7 +46,7 @@ to quickly create a Cobra application.`,
 		ctx := cmd.Context()
 		log := logger.New(logLevel, logFormat)
 
-		traceProvider, err := tracing.NewTracerProvider(ctx, log, cmd.Root().Version)
+		traceProvider, err := tracing.NewTracerProvider(ctx, log)
 		if err != nil {
 			return err
 		}
