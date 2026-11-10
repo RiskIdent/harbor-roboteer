@@ -54,6 +54,9 @@ to quickly create a Cobra application.`,
 
 		reg := metrics.NewRegistry()
 		ms, err := metrics.NewServer(ctx, log, metricsAddr, reg)
+		if err != nil {
+			return err
+		}
 
 		hc, err := harbor.New(
 			cmp.Or(harborURL, os.Getenv("HARBOR_URL")),
