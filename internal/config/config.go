@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/knadh/koanf/parsers/yaml"
@@ -17,9 +18,17 @@ type Config struct {
 }
 
 type Watcher struct {
-	path string
-	file *file.File
-	log  *slog.Logger
+	path  string
+	file  *file.File
+	log   *slog.Logger
+	cfg   *Config
+	mutex sync.RWMutex
+}
+
+func (w *Watcher) Config() *Config {
+	w.mutex.RLock()
+	defer w.mutex.RUnlock()
+	return w.cfg
 }
 
 // Watch starts watching the config file for changes, and calls the callback
@@ -27,11 +36,11 @@ type Watcher struct {
 //
 // Will stop watching when the context is cancelled,
 // and/or when the [Watcher.Close] is called.
-func (w *Watcher) Watch(ctx context.Context, callback func(cfg *Config)) error {
-	stop := context.AfterFunc(ctx, func() {
-		w.Close()
-	})
-	defer stop()
+func (w *Watcher) Watch(ctx context.Context) error {
+	go func() {
+		<-ctx.Done()
+		_ = w.Close()
+	}()
 	return w.file.Watch(func(event any, err error) {
 		// "event" is always nil for the file provider
 		if err != nil {
@@ -44,8 +53,10 @@ func (w *Watcher) Watch(ctx context.Context, callback func(cfg *Config)) error {
 			return
 		}
 
+		w.mutex.Lock()
+		defer w.mutex.Unlock()
+		w.cfg = cfg
 		w.log.InfoContext(ctx, "Config reloaded", slog.String("path", w.path))
-		callback(cfg)
 	})
 }
 
@@ -57,15 +68,20 @@ func (w *Watcher) Close() error {
 // Load reads the config file, parses it, and returns a watcher to watch for file changes.
 //
 // Returns an error if the initial load and parse failed.
-func Load(ctx context.Context, log *slog.Logger, path string) (*Config, *Watcher, error) {
+func Load(ctx context.Context, log *slog.Logger, path string) (*Watcher, error) {
 	f := file.Provider(path)
 	cfg, err := parseConfig(path, f)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	log.InfoContext(ctx, "Config loaded", slog.String("path", path))
 
-	return cfg, &Watcher{path: path, file: f, log: log}, nil
+	return &Watcher{
+		path: path,
+		file: f,
+		log:  log,
+		cfg:  cfg,
+	}, nil
 }
 
 func parseConfig(path string, f *file.File) (*Config, error) {

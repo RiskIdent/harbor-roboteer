@@ -66,18 +66,16 @@ to quickly create a Cobra application.`,
 
 		log := logger.New(opt.LogLevel, opt.LogFormat)
 
-		cfg, cfgWatcher, err := config.Load(ctx, log, opt.Config)
+		configWatcher, err := config.Load(ctx, log, opt.Config)
 		if err != nil {
 			return err
 		}
-		defer func() { _ = cfgWatcher.Close() }()
-		cfgWatcher.Watch(ctx, func(newCfg *config.Config) {
-			*cfg = *newCfg
+		/* TODO: remove test log */ log.DebugContext(ctx, "config at startup", slog.Any("knownClaims", configWatcher.Config().KnownClaims))
 
-			// TODO: remove test log
-			log.DebugContext(ctx, "config hot-reload", slog.Any("knownClaims", cfg.KnownClaims))
-		})
-		log.DebugContext(ctx, "config at startup", slog.Any("knownClaims", cfg.KnownClaims))
+		if err := configWatcher.Watch(ctx); err != nil {
+			return fmt.Errorf("watch config file: %w", err)
+		}
+		defer func() { _ = configWatcher.Close() }()
 
 		traceProvider, err := tracing.NewTracerProvider(ctx, log, cmd.Root().Version)
 		if err != nil {
@@ -106,7 +104,7 @@ to quickly create a Cobra application.`,
 		}
 		defer func() { _ = keys.Close(context.WithoutCancel(ctx)) }()
 
-		s, err := server.NewServer(ctx, opt.Addr, log, hc,
+		s, err := server.NewServer(ctx, opt.Addr, log, hc, configWatcher,
 			jwt.WithKeySet(keys.Set),
 			jwt.WithIssuer(opt.OIDCIssuer),
 			jwt.WithAudience(opt.OIDCAudience),

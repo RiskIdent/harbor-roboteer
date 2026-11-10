@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/RiskIdent/harbor-roboteer/internal/config"
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/models"
 	"github.com/lestrrat-go/jwx/v4/jwt"
 )
@@ -23,6 +24,7 @@ type Server struct {
 	listener net.Listener
 	log      *slog.Logger
 	harbor   harborClient
+	configure configure
 	jwtOpts  []jwt.ParseOption // key set, issuer and audience to verify caller tokens
 }
 
@@ -34,11 +36,15 @@ type harborClient interface {
 	Ping(ctx context.Context) error
 }
 
+type configure interface {
+	Config() *config.Config
+}
+
 type IServer interface {
 	Start(ctx context.Context) error
 }
 
-func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClient, jwtOpts ...jwt.ParseOption) (*Server, error) {
+func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClient, cfg configure, jwtOpts ...jwt.ParseOption) (*Server, error) {
 	r := http.NewServeMux()
 	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 	if err != nil {
@@ -56,6 +62,7 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClie
 		listener: l,
 		log:      log,
 		harbor:   hc,
+		configure: cfg,
 		jwtOpts:  jwtOpts,
 	}
 	s.registerHandlers()
