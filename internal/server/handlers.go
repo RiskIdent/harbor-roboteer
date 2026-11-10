@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -73,12 +74,17 @@ func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req postTokenRequest
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+	if err != nil {
 		if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
 			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
 			return
 		}
+		http.Error(w, "body must be valid JSON", http.StatusBadRequest)
+		return
+	}
+	var req postTokenRequest
+	if err := json.Unmarshal(body, &req); err != nil {
 		http.Error(w, "body must be valid JSON", http.StatusBadRequest)
 		return
 	}
