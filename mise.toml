@@ -4,6 +4,7 @@ actionlint = "1.7.12"
 go = "1.27.3"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.9.0"
 golangci-lint = "2.15.0"
+helm = "4.3.1"
 hk = "2.7.0"
 pkl = "0.32.1"
 rumdl = "v0.3.0"
@@ -11,6 +12,15 @@ shellcheck = "0.11.0"
 shfmt = "3.14.1"
 typos = "1.51.1"
 zizmor = "1.31.1"
+
+[tasks."generate:helm-schema"]
+description = "Generate Helm schemas"
+run = '''
+helm schema \
+  --config helm/harbor-roboteer/.schema.yaml \
+  -f helm/harbor-roboteer/values.yaml \
+  -o helm/harbor-roboteer/values.schema.json
+'''
 
 [tasks.pre-commit]
 description = "Runs the hk pre-commit checks, as if you were creating a Git commit"

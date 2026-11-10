@@ -19,6 +19,13 @@ import (
 
 const deleteTokenPrefix = "roboteer-delete-token-sha256:"
 
+// maxBodyBytes is the largest request body that POST /token accepts
+const maxBodyBytes = 64 << 10
+
+// errInvalidDeleteCombo is the same for an unknown robot and a wrong delete
+// token, so that callers can't use it to find out which robot IDs exist
+const errInvalidDeleteCombo = "invalid robot ID and delete token combination"
+
 type postTokenRequest struct {
 	Name string `json:"name"`
 	// project comes from the caller until the permission config (#38) lands
@@ -45,8 +52,6 @@ type postTokenResponse struct {
 
 var untracedPaths = []string{
 	"/health",
-	"/swagger",
-	"/swagger/*", // Swagger UI serves its HTML, CSS and JS assets under here
 }
 
 func (s *Server) registerHandlers() {
@@ -69,7 +74,11 @@ func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req postTokenRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
+		if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "body must be valid JSON", http.StatusBadRequest)
 		return
 	}
@@ -84,7 +93,7 @@ func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
 	}
 	if name == "" {
 		s.log.ErrorContext(r.Context(), "token has no sub claim and no name was provided in the request body")
-		http.Error(w, "token has no sub claim, set name in the request body", http.StatusUnauthorized)
+		http.Error(w, "token has no sub claim, set name in the request body", http.StatusBadRequest)
 		return
 	}
 
@@ -129,7 +138,7 @@ func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
 
 	rb, err := s.harbor.GetRobotByID(r.Context(), robotID)
 	if errors.Is(err, harbor.ErrRobotNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		http.Error(w, errInvalidDeleteCombo, http.StatusForbidden)
 		return
 	}
 	if err != nil {
@@ -141,7 +150,7 @@ func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
 	hash := sha256.Sum256([]byte(token))
 	want := deleteTokenPrefix + hex.EncodeToString(hash[:])
 	if subtle.ConstantTimeCompare([]byte(rb.Description), []byte(want)) != 1 {
-		http.Error(w, "invalid delete token", http.StatusForbidden)
+		http.Error(w, errInvalidDeleteCombo, http.StatusForbidden)
 		return
 	}
 
