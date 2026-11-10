@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=https://json-schema.org/draft-07/schema#
+$schema: https://json-schema.org/draft-07/schema#
+
+definitions:
+  image:
+    type: object
+    description: "Values for which container image to use."
+    properties:
+      repository:
+        type: string
+        description: Image repository. This corresponds to the image name. I.e the part before the colon (:)
+      pullPolicy:
+        type: string
+        description: Pod image pull policy
+        enum:
+          - IfNotPresent
+          - Always
+          - Never
+      tag:
+        type: [string, "null"]
+        description: Overrides the image tag whose default is the chart appVersion.
+
+  imagePullSecrets:
+    type: array
+    description: Pod imagePullSecrets
+    examples:
+      - [{ name: docker-pull-secret }]
+    items:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Name of Kubernetes Secret containing Docker pull secrets
+
+  resources:
+    type: [object, "null"]
+    description: Container resource limits & requests
+    additionalProperties: false
+    properties:
+      limits:
+        type: [object, "null"]
+        description: Resource limits sets a maximum amount of resources required during scheduling and runtime.
+        additionalProperties: false
+        properties:
+          memory:
+            type: [string, "null"]
+            description: Memory limits. Container is not allowed to use more than this amount, or it killed (OOMKilled)
+            examples: [50Mi]
+          cpu:
+            type: [integer, string, "null"]
+            description: CPU limits. Container is not allowed to use more than this amount, or it gets throttled.
+            examples: [1, 200m]
+
+      requests:
+        type: [object, "null"]
+        description: Resource requests sets a minimum amount of resources required during scheduling and runtime.
+        additionalProperties: false
+        properties:
+          memory:
+            type: [string, "null"]
+            description: Memory requests. Container is guaranteed to have room for at least this much memory.
+            examples: [50Mi]
+          cpu:
+            type: [integer, string, "null"]
+            description: CPU requests. Container is guaranteed to have time for at least this much usage.
+            examples: [1, 200m]
