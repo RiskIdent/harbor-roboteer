@@ -502,9 +502,3 @@ jobs:
         with:
           working-directory: helm/harbor-roboteer
           fail-on-diff: true
-
-      - uses: reviewdog/action-suggester@ac5ce6d94e35c00530447dc63c271e38e4fd36c6 # v1.26.3
-        if: steps.changed-files.outputs.any_changed == 'true' && always()
-        with:
-          tool_name: helm schema
-          fail_level: error

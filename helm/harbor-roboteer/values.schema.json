@@ -1469,7 +1469,7 @@
           }
         },
         "io.k8s.api.core.v1.NodeSelectorTerm": {
-          "description": "A null or empty node selector term matches no objects. The requirements of them are ANDead. The TopologySelectorTerm type implements a subset of the NodeSelectorTerm.",
+          "description": "A null or empty node selector term matches no objects. The requirements of them are ANDed. The TopologySelectorTerm type implements a subset of the NodeSelectorTerm.",
           "type": "object",
           "properties": {
             "matchExpressions": {
@@ -3193,18 +3193,18 @@
           "type": "object"
         },
         "io.k8s.apimachinery.pkg.apis.meta.v1.LabelSelector": {
-          "description": "A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDead. An empty label selector matches all objects. A null label selector matches no objects.",
+          "description": "A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.",
           "type": "object",
           "properties": {
             "matchExpressions": {
-              "description": "matchExpressions is a list of label selector requirements. The requirements are ANDead.",
+              "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
               "type": "array",
               "items": {
                 "$ref": "#/$defs/_definitions.json/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.LabelSelectorRequirement"
               }
             },
             "matchLabels": {
-              "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDead.",
+              "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
               "type": "object",
               "additionalProperties": {
                 "type": "string"
@@ -4796,7 +4796,7 @@
                     }
                   },
                   "matches": {
-                    "description": "Matches define conditions used for matching the rule against incoming\nHTTP requests. Each match is independent, i.e. this rule will be matched\nif **any** one of the matches is satisfied.\n\nFor example, take the following matches configuration:\n\n```\nmatches:\n- path:\n    value: \"/foo\"\n  headers:\n  - name: \"version\"\n    value: \"v2\"\n- path:\n    value: \"/v2/foo\"\n```\n\nFor a request to match against this rule, a request must satisfy\nEITHER of the two conditions:\n\n- path prefixed with `/foo` AND contains the header `version: v2`\n- path prefix of `/v2/foo`\n\nSee the documentation for HTTPRouteMatch on how to specify multiple\nmatch conditions that should be ANDead together.\n\nIf no matches are specified, the default is a prefix\npath match on \"/\", which has the effect of matching every\nHTTP request.\n\nProxy or Load Balancer routing configuration generated from HTTPRoutes\nMUST prioritize matches based on the following criteria, continuing on\nties. Across all rules specified on applicable Routes, precedence must be\ngiven to the match having:\n\n* \"Exact\" path match.\n* \"Prefix\" path match with largest number of characters.\n* Method match.\n* Largest number of header matches.\n* Largest number of query param matches.\n\nNote: The precedence of RegularExpression path matches are implementation-specific.\n\nIf ties still exist across multiple Routes, matching precedence MUST be\ndetermined in order of the following criteria, continuing on ties:\n\n* The oldest Route based on creation timestamp.\n* The Route appearing first in alphabetical order by\n  \"{namespace}/{name}\".\n\nIf ties still exist within an HTTPRoute, matching precedence MUST be granted\nto the FIRST matching rule (in list order) with a match meeting the above\ncriteria.\n\nWhen no rules matching a request have been successfully attached to the\nparent a request is coming from, a HTTP 404 status code MUST be returned.",
+                    "description": "Matches define conditions used for matching the rule against incoming\nHTTP requests. Each match is independent, i.e. this rule will be matched\nif **any** one of the matches is satisfied.\n\nFor example, take the following matches configuration:\n\n```\nmatches:\n- path:\n    value: \"/foo\"\n  headers:\n  - name: \"version\"\n    value: \"v2\"\n- path:\n    value: \"/v2/foo\"\n```\n\nFor a request to match against this rule, a request must satisfy\nEITHER of the two conditions:\n\n- path prefixed with `/foo` AND contains the header `version: v2`\n- path prefix of `/v2/foo`\n\nSee the documentation for HTTPRouteMatch on how to specify multiple\nmatch conditions that should be ANDed together.\n\nIf no matches are specified, the default is a prefix\npath match on \"/\", which has the effect of matching every\nHTTP request.\n\nProxy or Load Balancer routing configuration generated from HTTPRoutes\nMUST prioritize matches based on the following criteria, continuing on\nties. Across all rules specified on applicable Routes, precedence must be\ngiven to the match having:\n\n* \"Exact\" path match.\n* \"Prefix\" path match with largest number of characters.\n* Method match.\n* Largest number of header matches.\n* Largest number of query param matches.\n\nNote: The precedence of RegularExpression path matches are implementation-specific.\n\nIf ties still exist across multiple Routes, matching precedence MUST be\ndetermined in order of the following criteria, continuing on ties:\n\n* The oldest Route based on creation timestamp.\n* The Route appearing first in alphabetical order by\n  \"{namespace}/{name}\".\n\nIf ties still exist within an HTTPRoute, matching precedence MUST be granted\nto the FIRST matching rule (in list order) with a match meeting the above\ncriteria.\n\nWhen no rules matching a request have been successfully attached to the\nparent a request is coming from, a HTTP 404 status code MUST be returned.",
                     "default": [
                       {
                         "path": {
@@ -4808,7 +4808,7 @@
                     "type": "array",
                     "maxItems": 64,
                     "items": {
-                      "description": "HTTPRouteMatch defines the predicate used to match requests to a given\naction. Multiple match types are ANDead together, i.e. the match will\nevaluate to true only if all conditions are satisfied.\n\nFor example, the match below will match a HTTP request only if its path\nstarts with `/foo` AND it contains the `version: v1` header:\n\n```\nmatch:\n\n\tpath:\n\t  value: \"/foo\"\n\theaders:\n\t- name: \"version\"\n\t  value \"v1\"\n\n```",
+                      "description": "HTTPRouteMatch defines the predicate used to match requests to a given\naction. Multiple match types are ANDed together, i.e. the match will\nevaluate to true only if all conditions are satisfied.\n\nFor example, the match below will match a HTTP request only if its path\nstarts with `/foo` AND it contains the `version: v1` header:\n\n```\nmatch:\n\n\tpath:\n\t  value: \"/foo\"\n\theaders:\n\t- name: \"version\"\n\t  value \"v1\"\n\n```",
                       "type": "object",
                       "properties": {
                         "headers": {
@@ -4893,7 +4893,7 @@
                           "additionalProperties": false
                         },
                         "queryParams": {
-                          "description": "QueryParams specifies HTTP query parameter matchers. Multiple match\nvalues are ANDead together, meaning, a request must match all the\nspecified query parameters to select the route.\n\nSupport: Extended",
+                          "description": "QueryParams specifies HTTP query parameter matchers. Multiple match\nvalues are ANDed together, meaning, a request must match all the\nspecified query parameters to select the route.\n\nSupport: Extended",
                           "type": "array",
                           "maxItems": 16,
                           "items": {
