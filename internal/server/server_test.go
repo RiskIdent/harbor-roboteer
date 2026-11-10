@@ -10,10 +10,12 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/RiskIdent/harbor-roboteer/internal/metrics"
 )
 
 func TestStartWaitsForInFlightRequests(t *testing.T) {
-	s, err := NewServer(t.Context(), ":0", slog.New(slog.DiscardHandler), nil, nil)
+	s, err := NewServer(t.Context(), ":0", slog.New(slog.DiscardHandler), slog.New(slog.DiscardHandler), metrics.NewRegistry(), nil.nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +51,7 @@ func TestStartWaitsForInFlightRequests(t *testing.T) {
 }
 
 func TestSlowRequestHeadersAreCutOff(t *testing.T) {
-	s, err := NewServer(t.Context(), "127.0.0.1:0", slog.New(slog.DiscardHandler), nil, nil)
+	s, err := NewServer(t.Context(), "127.0.0.1:0", slog.New(slog.DiscardHandler), metrics.NewRegistry(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -24,7 +24,7 @@ builds:
       - >-
         -s
         -w
-        -X main.version={{.Tag}}
+        -X github.com/RiskIdent/harbor-roboteer/internal/version.version={{.Tag}}
     ignore:
       - goos: windows
         goarch: "arm64"

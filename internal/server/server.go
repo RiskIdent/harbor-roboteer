@@ -10,8 +10,11 @@ import (
 	"time"
 
 	"github.com/RiskIdent/harbor-roboteer/internal/config"
+	"github.com/RiskIdent/harbor-roboteer/internal/metrics"
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/models"
 	"github.com/lestrrat-go/jwx/v4/jwt"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 // readHeaderTimeout limits how long a client may take to send the request
@@ -23,6 +26,7 @@ type Server struct {
 	server        *http.Server
 	listener      net.Listener
 	log           *slog.Logger
+	metrics       metrics.Middleware
 	harbor        harborClient
 	configWatcher configWatcher
 	jwtOpts       []jwt.ParseOption // key set, issuer and audience to verify caller tokens
@@ -45,11 +49,20 @@ type IServer interface {
 	Start(ctx context.Context) error
 }
 
-func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClient, cfg configWatcher, jwtOpts ...jwt.ParseOption) (*Server, error) {
+func NewServer(ctx context.Context, addr string, log *slog.Logger, reg *metrics.Registry, hc harborClient, cfg configWatcher, jwtOpts ...jwt.ParseOption) (*Server, error) {
 	r := http.NewServeMux()
 	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create the listener with addr %s, error: %w", addr, err)
+	}
+	robotOps := promauto.With(reg.Registry).NewCounterVec(prometheus.CounterOpts{
+		Name: "harbor_roboteer_robot_operations_total",
+		Help: "Robot account operations in Harbor, by operation and result.",
+	}, []string{"operation", "result"})
+	for _, op := range []string{"create", "delete"} {
+		for _, res := range []string{"success", "failure"} {
+			robotOps.WithLabelValues(op, res)
+		}
 	}
 	s := &Server{
 		router: r,
@@ -62,6 +75,7 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClie
 		},
 		listener:      l,
 		log:           log,
+		metrics:       metrics.NewMiddleware(reg.Registry, nil),
 		harbor:        hc,
 		configWatcher: cfg,
 		jwtOpts:       jwtOpts,
