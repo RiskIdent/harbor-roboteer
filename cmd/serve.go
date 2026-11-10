@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"strings"
 
@@ -70,7 +69,6 @@ to quickly create a Cobra application.`,
 		if err != nil {
 			return err
 		}
-		/* TODO: remove test log */ log.DebugContext(ctx, "config at startup", slog.Any("knownClaims", configWatcher.Config().KnownClaims))
 
 		if err := configWatcher.Watch(ctx); err != nil {
 			return fmt.Errorf("watch config file: %w", err)
