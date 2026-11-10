@@ -18,17 +18,22 @@ type Config struct {
 }
 
 type Watcher struct {
-	path  string
-	file  *file.File
-	log   *slog.Logger
-	cfg   *Config
-	mutex sync.RWMutex
+	path       string
+	file       *file.File
+	log        *slog.Logger
+	cfg        *Config
+	mutex      sync.RWMutex
+	isWatching bool
 }
 
 func (w *Watcher) Config() *Config {
 	w.mutex.RLock()
 	defer w.mutex.RUnlock()
 	return w.cfg
+}
+
+func (w *Watcher) IsWatching() bool {
+	return w.isWatching
 }
 
 // Watch starts watching the config file for changes, and calls the callback
@@ -41,10 +46,12 @@ func (w *Watcher) Watch(ctx context.Context) error {
 		<-ctx.Done()
 		_ = w.Close()
 	}()
+	w.isWatching = true
 	return w.file.Watch(func(event any, err error) {
 		// "event" is always nil for the file provider
 		if err != nil {
 			w.log.ErrorContext(ctx, "Error watching config file", slog.String("path", w.path), slog.Any("error", err))
+			w.isWatching = false // koanf stops the watch loop here
 			return
 		}
 		cfg, err := parseConfig(w.path, w.file)
@@ -62,6 +69,7 @@ func (w *Watcher) Watch(ctx context.Context) error {
 
 // Close stops the watcher from watching the file.
 func (w *Watcher) Close() error {
+	w.isWatching = false
 	return w.file.Unwatch() // [file.File.Unwatch] uses mutexes, so we don't need to
 }
 

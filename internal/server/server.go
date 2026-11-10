@@ -19,13 +19,13 @@ import (
 const readHeaderTimeout = 10 * time.Second
 
 type Server struct {
-	router   *http.ServeMux
-	server   *http.Server
-	listener net.Listener
-	log      *slog.Logger
-	harbor   harborClient
-	configure configure
-	jwtOpts  []jwt.ParseOption // key set, issuer and audience to verify caller tokens
+	router        *http.ServeMux
+	server        *http.Server
+	listener      net.Listener
+	log           *slog.Logger
+	harbor        harborClient
+	configWatcher configWatcher
+	jwtOpts       []jwt.ParseOption // key set, issuer and audience to verify caller tokens
 }
 
 type harborClient interface {
@@ -36,15 +36,16 @@ type harborClient interface {
 	Ping(ctx context.Context) error
 }
 
-type configure interface {
+type configWatcher interface {
 	Config() *config.Config
+	IsWatching() bool
 }
 
 type IServer interface {
 	Start(ctx context.Context) error
 }
 
-func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClient, cfg configure, jwtOpts ...jwt.ParseOption) (*Server, error) {
+func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClient, cfg configWatcher, jwtOpts ...jwt.ParseOption) (*Server, error) {
 	r := http.NewServeMux()
 	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 	if err != nil {
@@ -59,11 +60,11 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClie
 				LoggingMiddleware(log),
 			),
 		},
-		listener: l,
-		log:      log,
-		harbor:   hc,
-		configure: cfg,
-		jwtOpts:  jwtOpts,
+		listener:      l,
+		log:           log,
+		harbor:        hc,
+		configWatcher: cfg,
+		jwtOpts:       jwtOpts,
 	}
 	s.registerHandlers()
 	return s, nil
