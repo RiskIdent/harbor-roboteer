@@ -3,6 +3,7 @@ package harbor
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/client/ping"
@@ -21,7 +22,7 @@ func TestNew(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c, err := New(srv.URL+"/", "admin", "secret")
+	c, err := New(mustParseURL(srv.URL+"/"), "admin", "secret")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,9 +32,17 @@ func TestNew(t *testing.T) {
 }
 
 func TestNewInvalidURL(t *testing.T) {
-	for _, u := range []string{"", "harbor.example.com", "://bad"} {
-		if _, err := New(u, "admin", "secret"); err == nil {
+	for _, u := range []string{"", "harbor.example.com"} {
+		if _, err := New(mustParseURL(u), "admin", "secret"); err == nil {
 			t.Errorf("New(%q) returned no error", u)
 		}
 	}
+}
+
+func mustParseURL(val string) *url.URL {
+	u, err := url.Parse(val)
+	if err != nil {
+		panic(err)
+	}
+	return u
 }

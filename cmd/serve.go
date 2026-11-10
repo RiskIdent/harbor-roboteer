@@ -1,33 +1,51 @@
 package cmd
 
 import (
-	"cmp"
 	"context"
-	"errors"
 	"fmt"
-	"os"
+	"log/slog"
+	"net/url"
+	"strings"
 
+	"github.com/RiskIdent/harbor-roboteer/internal/config"
 	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
 	"github.com/RiskIdent/harbor-roboteer/internal/jwks"
 	"github.com/RiskIdent/harbor-roboteer/internal/logger"
 	"github.com/RiskIdent/harbor-roboteer/internal/server"
 	"github.com/RiskIdent/harbor-roboteer/internal/tracing"
+	validation "github.com/go-ozzo/ozzo-validation/v4"
+	"github.com/go-viper/mapstructure/v2"
+	"github.com/knadh/koanf/providers/env/v2"
+	"github.com/knadh/koanf/providers/posflag"
+	"github.com/knadh/koanf/v2"
 	"github.com/lestrrat-go/jwx/v4/jwt"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
-var (
-	addr      string
-	logLevel  string
-	logFormat string
+type ServeOptions struct {
+	Config         string   `koanf:"config"`
+	Addr           string   `koanf:"addr"`
+	LogLevel       string   `koanf:"log-level"`
+	LogFormat      string   `koanf:"log-format"`
+	HarborURL      *url.URL `koanf:"harbor-url"`
+	HarborUsername string   `koanf:"harbor-username"`
+	HarborPassword string   `koanf:"harbor-password"`
+	OIDCIssuer     string   `koanf:"oidc-issuer"`
+	OIDCAudience   string   `koanf:"oidc-audience"`
 
-	harborURL      string
-	harborUsername string
-	harborPassword string
+	Help bool `koanf:"help"` // ignored, but added to keep "ErrorUnused" happy
+}
 
-	oidcIssuer   string
-	oidcAudience string
-)
+var ServeDefaults = ServeOptions{
+	Config:    "roboteer.yaml",
+	Addr:      "127.0.0.1:8080",
+	LogLevel:  "info",
+	LogFormat: "json",
+	HarborURL: &url.URL{},
+
+	OIDCAudience: "harbor-roboteer",
+}
 
 // serveCmd represents the serve command
 var serveCmd = &cobra.Command{
@@ -41,7 +59,25 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		ctx := cmd.Context()
-		log := logger.New(logLevel, logFormat)
+		opt, err := LoadServeOptions(cmd.Flags())
+		if err != nil {
+			return err
+		}
+
+		log := logger.New(opt.LogLevel, opt.LogFormat)
+
+		cfg, cfgWatcher, err := config.Load(ctx, log, opt.Config)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = cfgWatcher.Close() }()
+		cfgWatcher.Watch(ctx, func(newCfg *config.Config) {
+			*cfg = *newCfg
+
+			// TODO: remove test log
+			log.DebugContext(ctx, "config hot-reload", slog.Any("knownClaims", cfg.KnownClaims))
+		})
+		log.DebugContext(ctx, "config at startup", slog.Any("knownClaims", cfg.KnownClaims))
 
 		traceProvider, err := tracing.NewTracerProvider(ctx, log, cmd.Root().Version)
 		if err != nil {
@@ -50,29 +86,30 @@ to quickly create a Cobra application.`,
 		defer tracing.ShutdownTracer(context.WithoutCancel(ctx), log, traceProvider)
 
 		hc, err := harbor.New(
-			cmp.Or(harborURL, os.Getenv("HARBOR_URL")),
-			cmp.Or(harborUsername, os.Getenv("HARBOR_USERNAME")),
-			cmp.Or(harborPassword, os.Getenv("HARBOR_PASSWORD")),
+			opt.HarborURL,
+			opt.HarborUsername,
+			opt.HarborPassword,
 		)
 		if err != nil {
 			return err
 		}
 
-		issuer := cmp.Or(oidcIssuer, os.Getenv("OIDC_ISSUER"))
-		audience := cmp.Or(oidcAudience, os.Getenv("OIDC_AUDIENCE"))
-		if issuer == "" || audience == "" {
-			return errors.New("--oidc-issuer and --oidc-audience are required")
+		if err := (validation.Errors{
+			"oidc-issuer":   validation.Validate(opt.OIDCIssuer, validation.Required),
+			"oidc-audience": validation.Validate(opt.OIDCAudience, validation.Required),
+		}).Filter(); err != nil {
+			return fmt.Errorf("OIDC config: %w", err)
 		}
-		keys, err := jwks.New(ctx, issuer)
+		keys, err := jwks.New(ctx, opt.OIDCIssuer)
 		if err != nil {
 			return err
 		}
 		defer func() { _ = keys.Close(context.WithoutCancel(ctx)) }()
 
-		s, err := server.NewServer(ctx, addr, log, hc,
+		s, err := server.NewServer(ctx, opt.Addr, log, hc,
 			jwt.WithKeySet(keys.Set),
-			jwt.WithIssuer(issuer),
-			jwt.WithAudience(audience),
+			jwt.WithIssuer(opt.OIDCIssuer),
+			jwt.WithAudience(opt.OIDCAudience),
 		)
 		if err != nil {
 			return err
@@ -90,12 +127,57 @@ to quickly create a Cobra application.`,
 func init() {
 	rootCmd.AddCommand(serveCmd)
 
-	serveCmd.Flags().StringVarP(&addr, "addr", "a", "127.0.0.1:8080", "server addr")
-	serveCmd.Flags().StringVarP(&logLevel, "log-level", "", "info", "log level")
-	serveCmd.Flags().StringVarP(&logFormat, "log-format", "", "json", "log format")
-	serveCmd.Flags().StringVar(&harborURL, "harbor-url", "", "Harbor base URL (env HARBOR_URL)")
-	serveCmd.Flags().StringVar(&harborUsername, "harbor-username", "", "Harbor admin or robot username (env HARBOR_USERNAME)")
-	serveCmd.Flags().StringVar(&harborPassword, "harbor-password", "", "Harbor password, prefer the env var (env HARBOR_PASSWORD)")
-	serveCmd.Flags().StringVar(&oidcIssuer, "oidc-issuer", "", "OIDC issuer URL, e.g. https://token.actions.githubusercontent.com (env OIDC_ISSUER)")
-	serveCmd.Flags().StringVar(&oidcAudience, "oidc-audience", "", "required token audience, e.g. harbor-roboteer (env OIDC_AUDIENCE)")
+	serveCmd.Flags().StringP("config", "c", ServeDefaults.Config, "config file path, env: $ROBOTEER_CONFIG")
+	serveCmd.Flags().StringP("addr", "a", ServeDefaults.Addr, "server addr, env: $ROBOTEER_ADDR")
+	serveCmd.Flags().StringP("log-level", "", ServeDefaults.LogLevel, "log level, env: $ROBOTEER_LOG_LEVEL")
+	serveCmd.Flags().StringP("log-format", "", ServeDefaults.LogFormat, "log format, env: $ROBOTEER_LOG_FORMAT")
+	serveCmd.Flags().String("harbor-url", ServeDefaults.HarborURL.String(), "Harbor base URL, env: $ROBOTEER_HARBOR_URL")
+	serveCmd.Flags().String("harbor-username", ServeDefaults.HarborUsername, "Harbor admin or robot username, env: $ROBOTEER_HARBOR_USERNAME")
+	serveCmd.Flags().String("harbor-password", ServeDefaults.HarborPassword, "Harbor password, prefer the env var, env: $ROBOTEER_HARBOR_PASSWORD")
+	serveCmd.Flags().String("oidc-issuer", ServeDefaults.OIDCIssuer, "OIDC issuer URL, e.g. https://token.actions.githubusercontent.com, env: $ROBOTEER_OIDC_ISSUER")
+	serveCmd.Flags().String("oidc-audience", ServeDefaults.OIDCAudience, "required token audience, e.g. harbor-roboteer, env: $ROBOTEER_OIDC_AUDIENCE")
+}
+
+func LoadServeOptions(flags *pflag.FlagSet) (*ServeOptions, error) {
+	var o ServeOptions
+	if err := LoadOptions(flags, &o); err != nil {
+		return nil, err
+	}
+	return &o, nil
+}
+
+func LoadOptions(flags *pflag.FlagSet, cfgPtr any) error {
+	k := koanf.New("-")
+
+	const envPrefix = "ROBOTEER_"
+	if err := k.Load(env.Provider("_", env.Opt{
+		Prefix: envPrefix,
+		TransformFunc: func(key, value string) (string, any) {
+			return strings.ToLower(strings.TrimPrefix(key, envPrefix)), value
+		},
+	}), nil); err != nil {
+		return fmt.Errorf("read env vars: %w", err)
+	}
+
+	if err := k.Load(posflag.Provider(flags, "-", k), nil); err != nil {
+		return fmt.Errorf("read command-line flags: %w", err)
+	}
+
+	// here's where the actual parsing takes place, like string->*url.URL
+	if err := k.UnmarshalWithConf("", cfgPtr, koanf.UnmarshalConf{
+		Tag:       "koanf", // it's the default, but just being explicit
+		FlatPaths: true,    // allows `koanf:"foo-bar"` instead of requiring sub-structs
+		DecoderConfig: &mapstructure.DecoderConfig{
+			DecodeHook: mapstructure.ComposeDecodeHookFunc(
+				mapstructure.StringToTimeDurationHookFunc(),
+				mapstructure.StringToURLHookFunc(),
+			),
+			ErrorUnused:      true, // error when user gives env vars we don't support
+			WeaklyTypedInput: true,
+		},
+	}); err != nil {
+		return fmt.Errorf("parse config: %w", err)
+	}
+
+	return nil
 }
