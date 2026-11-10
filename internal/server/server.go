@@ -13,6 +13,10 @@ import (
 	"github.com/lestrrat-go/jwx/v4/jwt"
 )
 
+// readHeaderTimeout limits how long a client may take to send the request
+// headers, so that slow clients can't hold connections open forever
+const readHeaderTimeout = 10 * time.Second
+
 type Server struct {
 	router   *http.ServeMux
 	server   *http.Server
@@ -38,11 +42,12 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClie
 	r := http.NewServeMux()
 	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 	if err != nil {
-		return &Server{}, fmt.Errorf("couldn't create the listener with addr %s, error: %w", addr, err)
+		return nil, fmt.Errorf("couldn't create the listener with addr %s, error: %w", addr, err)
 	}
 	s := &Server{
 		router: r,
 		server: &http.Server{
+			ReadHeaderTimeout: readHeaderTimeout,
 			Handler: ChainMiddlewares(r,
 				TracingMiddleware(untracedPaths...),
 				LoggingMiddleware(log),
