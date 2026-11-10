@@ -1,0 +1,170 @@
+# yaml-language-server: $schema=https://spec.openapis.org/oas/3.1/schema/2022-10-07
+openapi: 3.1.1
+info:
+  title: harbor-roboteer
+  description: Documentation for the harbor-roboteer's HTTP REST API.
+  contact:
+    name: RISK IDENT
+    email: platform@riskident.com
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 0.0.0 # x-release-please-version
+externalDocs:
+  url: https://github.com/RiskIdent/harbor-roboteer
+
+paths:
+  /token:
+    post:
+      operationId: postToken
+      summary: Create robot account
+      description: Use JWT claims to create a new Harbor robot account
+      security:
+        - JWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostTokenRequest"
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostTokenResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Error"
+        "413":
+          description: Request body is larger than 64 KiB
+          content:
+            text/plain:
+              schema:
+                type: string
+        "502":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteToken
+      summary: Delete robot account
+      description: >-
+        Clean up Harbor robot account that you have created.
+        Robot accounts are automatically cleaned up,
+        but best is to remove them immediately when you are done.
+      security:
+        - DeleteKey: []
+      parameters:
+        - name: robot_id
+          in: query
+          required: true
+          description: Robot account ID
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: ok
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: >-
+            Invalid combination of robot ID and delete token.
+            Either the robot account doesn't exist, or the delete token is wrong.
+          content:
+            text/plain:
+              schema:
+                type: string
+        "404":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
+
+  /health:
+    get:
+      operationId: getHealth
+      summary: Health check
+      description: Checks that harbor-roboteer can reach Harbor.
+      security: []
+      responses:
+        "200":
+          description: Healthy
+        "503":
+          $ref: "#/components/responses/Error"
+
+components:
+  securitySchemes:
+    JWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Signed token from the caller, e.g. a GitHub Actions OIDC token.
+    DeleteKey:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: The `deleteToken` returned by `POST /token`.
+  responses:
+    Error:
+      description: Error
+      content:
+        text/plain:
+          schema:
+            type: string
+    Unauthorized:
+      description: Unauthorized
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+            example: Bearer
+      content:
+        text/plain:
+          schema:
+            type: string
+  schemas:
+    PostTokenRequest:
+      type: object
+      required:
+        - project
+      properties:
+        name:
+          type: string
+          description: >-
+            Robot account name. Defaults to the token's `sub` claim.
+            The name is transformed into lowercase, characters other than `a-z` and `0-9` become `-`,
+            and a random suffix is added to avoid collisions.
+          example: my-robot-account-name
+        project:
+          type: string
+          description: Harbor project to create the robot account in.
+    PostTokenResponse:
+      type: object
+      required:
+        - robot
+        - deleteToken
+      properties:
+        robot:
+          $ref: "#/components/schemas/RobotCredentials"
+        deleteToken:
+          type: string
+    RobotCredentials:
+      type: object
+      required:
+        - id
+        - username
+        - password
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+          example: robot$my-project+my-robot-account-name-19sajdk2
+        password:
+          type: string

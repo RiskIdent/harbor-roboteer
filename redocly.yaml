@@ -1,0 +1,8 @@
+extends:
+  - recommended
+
+rules:
+  # The service is deployed by each user, so there's no URL to document
+  no-empty-servers: off
+  # The health check only has success and 503
+  operation-4xx-response: off
