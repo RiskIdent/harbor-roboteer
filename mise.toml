@@ -22,6 +22,10 @@ helm schema \
   -o helm/harbor-roboteer/values.schema.json
 '''
 
+[tasks."lint:helm"]
+description = "Lint Helm chart"
+run = "helm lint --strict helm/harbor-roboteer"
+
 [tasks.pre-commit]
 description = "Runs the hk pre-commit checks, as if you were creating a Git commit"
 run = "hk run pre-commit"
