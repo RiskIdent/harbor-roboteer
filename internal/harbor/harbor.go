@@ -2,15 +2,19 @@ package harbor
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strings"
 
 	"github.com/go-openapi/runtime"
 	httptransport "github.com/go-openapi/runtime/client"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	v2client "github.com/goharbor/go-client/pkg/sdk/v2.0/client"
+	"github.com/goharbor/go-client/pkg/sdk/v2.0/client/ping"
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/client/robot"
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/models"
 )
@@ -19,6 +23,13 @@ var (
 	ErrRobotExists   = errors.New("robot account already exists")
 	ErrRobotNotFound = errors.New("robot account not found")
 )
+
+const (
+	createAttempts = 5
+	maxNameLen     = 128
+)
+
+var invalidNameChars = regexp.MustCompile(`[^a-z0-9]+`)
 
 type Client struct {
 	api *v2client.HarborAPI
@@ -63,8 +74,28 @@ func (c *Client) GetRobotByID(ctx context.Context, id int64) (*models.Robot, err
 	return resp.Payload, nil
 }
 
+// normalizeRobotName turns any identifier into a valid Harbor robot name.
+func normalizeRobotName(base, suffix string) string {
+	base = strings.Trim(invalidNameChars.ReplaceAllString(strings.ToLower(base), "-"), "-")
+	base = strings.TrimRight(base[:min(len(base), maxNameLen-len(suffix)-1)], "-")
+	if base == "" {
+		return suffix
+	}
+	return base + "-" + suffix
+}
+
 // CreateRobot creates a project-level robot account with pull and push access to project.
 func (c *Client) CreateRobot(ctx context.Context, name, project, description string) (*models.RobotCreated, error) {
+	for range createAttempts {
+		created, err := c.createRobot(ctx, normalizeRobotName(name, strings.ToLower(rand.Text()[:8])), project, description)
+		if !errors.Is(err, ErrRobotExists) {
+			return created, err
+		}
+	}
+	return nil, ErrRobotExists
+}
+
+func (c *Client) createRobot(ctx context.Context, name, project, description string) (*models.RobotCreated, error) {
 	resp, err := c.api.Robot.CreateRobot(ctx, robot.NewCreateRobotParams().WithRobot(&models.RobotCreate{
 		Name:        name,
 		Description: description,
@@ -97,6 +128,14 @@ func (c *Client) DeleteRobot(ctx context.Context, id int64) error {
 			return ErrRobotNotFound
 		}
 		return fmt.Errorf("delete robot %d: %w", id, err)
+	}
+	return nil
+}
+
+// Ping pings the harbor api to check if it is reachable.
+func (c *Client) Ping(ctx context.Context) error {
+	if _, err := c.api.Ping.GetPing(ctx, ping.NewGetPingParams()); err != nil {
+		return fmt.Errorf("ping harbor: %w", err)
 	}
 	return nil
 }
