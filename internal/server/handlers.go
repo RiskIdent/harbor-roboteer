@@ -58,8 +58,12 @@ var untracedPaths = []string{
 func (s *Server) registerHandlers() {
 	router := s.router
 
-	router.HandleFunc("POST /token", s.postToken)
-	router.HandleFunc("DELETE /token", s.deleteToken)
+	handle := func(pattern string, h http.HandlerFunc) {
+		router.Handle(pattern, s.metrics.WrapHandler(pattern, h))
+	}
+
+	handle("POST /token", s.postToken)
+	handle("DELETE /token", s.deleteToken)
 
 	router.HandleFunc("GET /health", s.health)
 }
@@ -107,6 +111,7 @@ func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
 	hash := sha256.Sum256([]byte(deleteToken))
 
 	created, err := s.harbor.CreateRobot(r.Context(), name, req.Project, deleteTokenPrefix+hex.EncodeToString(hash[:]))
+	s.countRobotOp("create", err)
 	if errors.Is(err, harbor.ErrRobotExists) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
@@ -161,6 +166,7 @@ func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = s.harbor.DeleteRobot(r.Context(), robotID)
+	s.countRobotOp("delete", err)
 	if errors.Is(err, harbor.ErrRobotNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -171,6 +177,16 @@ func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// countRobotOp records the outcome of a Harbor create or delete call.
+// Requests rejected before reaching Harbor are not counted here.
+func (s *Server) countRobotOp(op string, err error) {
+	result := "success"
+	if err != nil {
+		result = "failure"
+	}
+	s.robotOps.WithLabelValues(op, result).Inc()
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {

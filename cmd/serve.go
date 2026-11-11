@@ -10,16 +10,19 @@ import (
 	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
 	"github.com/RiskIdent/harbor-roboteer/internal/jwks"
 	"github.com/RiskIdent/harbor-roboteer/internal/logger"
+	"github.com/RiskIdent/harbor-roboteer/internal/metrics"
 	"github.com/RiskIdent/harbor-roboteer/internal/server"
 	"github.com/RiskIdent/harbor-roboteer/internal/tracing"
 	"github.com/lestrrat-go/jwx/v4/jwt"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
-	addr      string
-	logLevel  string
-	logFormat string
+	addr        string
+	metricsAddr string
+	logLevel    string
+	logFormat   string
 
 	harborURL      string
 	harborUsername string
@@ -43,11 +46,17 @@ to quickly create a Cobra application.`,
 		ctx := cmd.Context()
 		log := logger.New(logLevel, logFormat)
 
-		traceProvider, err := tracing.NewTracerProvider(ctx, log, cmd.Root().Version)
+		traceProvider, err := tracing.NewTracerProvider(ctx, log)
 		if err != nil {
 			return err
 		}
 		defer tracing.ShutdownTracer(context.WithoutCancel(ctx), log, traceProvider)
+
+		reg := metrics.NewRegistry()
+		ms, err := metrics.NewServer(ctx, log, metricsAddr, reg)
+		if err != nil {
+			return err
+		}
 
 		hc, err := harbor.New(
 			cmp.Or(harborURL, os.Getenv("HARBOR_URL")),
@@ -69,7 +78,7 @@ to quickly create a Cobra application.`,
 		}
 		defer func() { _ = keys.Close(context.WithoutCancel(ctx)) }()
 
-		s, err := server.NewServer(ctx, addr, log, hc,
+		s, err := server.NewServer(ctx, addr, reg, log, hc,
 			jwt.WithKeySet(keys.Set),
 			jwt.WithIssuer(issuer),
 			jwt.WithAudience(audience),
@@ -78,8 +87,15 @@ to quickly create a Cobra application.`,
 			return err
 		}
 
-		if err := s.Start(ctx); err != nil {
-			return fmt.Errorf("run server: %w", err)
+		g, gctx := errgroup.WithContext(ctx)
+		g.Go(func() error {
+			return ms.Start(gctx)
+		})
+		g.Go(func() error {
+			return s.Start(gctx)
+		})
+		if err := g.Wait(); err != nil {
+			return fmt.Errorf("run servers: %w", err)
 		}
 
 		log.InfoContext(ctx, "server shutdown successfully")
@@ -91,6 +107,7 @@ func init() {
 	rootCmd.AddCommand(serveCmd)
 
 	serveCmd.Flags().StringVarP(&addr, "addr", "a", "127.0.0.1:8080", "server addr")
+	serveCmd.Flags().StringVarP(&metricsAddr, "metrics-addr", "", "127.0.0.1:9090", "metrics server addr")
 	serveCmd.Flags().StringVarP(&logLevel, "log-level", "", "info", "log level")
 	serveCmd.Flags().StringVarP(&logFormat, "log-format", "", "json", "log format")
 	serveCmd.Flags().StringVar(&harborURL, "harbor-url", "", "Harbor base URL (env HARBOR_URL)")
