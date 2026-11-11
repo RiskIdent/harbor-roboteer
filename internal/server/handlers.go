@@ -65,6 +65,7 @@ func (s *Server) registerHandlers() {
 }
 
 func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	tok, err := jwt.ParseRequest(r, s.jwtOpts...)
 	if err != nil {
 		s.log.ErrorContext(r.Context(), "parse token")
@@ -105,6 +106,9 @@ func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
 
 	deleteToken := rand.Text()
 	hash := sha256.Sum256([]byte(deleteToken))
+
+	cfg := s.configWatcher.Config() // TODO: use config in roles mapping
+	/* TODO: remove test log */ s.log.DebugContext(ctx, "config", slog.Any("knownClaims", cfg.KnownClaims))
 
 	created, err := s.harbor.CreateRobot(r.Context(), name, req.Project, deleteTokenPrefix+hex.EncodeToString(hash[:]))
 	if errors.Is(err, harbor.ErrRobotExists) {
@@ -174,9 +178,14 @@ func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
+	if !s.configWatcher.IsWatching() {
+		s.log.ErrorContext(r.Context(), "config watcher", slog.Any("error", "config stopped watching file"))
+		http.Error(w, "not healthy: config stopped watching file", http.StatusServiceUnavailable)
+		return
+	}
 	if err := s.harbor.Ping(r.Context()); err != nil {
 		s.log.ErrorContext(r.Context(), "ping harbor", slog.Any("error", err))
-		http.Error(w, "not healthy", http.StatusServiceUnavailable)
+		http.Error(w, "not healthy: failed to ping harbor", http.StatusServiceUnavailable)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

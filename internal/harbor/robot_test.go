@@ -75,7 +75,7 @@ func fakeHarbor(t *testing.T, respond func(w http.ResponseWriter, name string)) 
 		respond(w, body.Name)
 	}))
 	t.Cleanup(srv.Close)
-	c, err := New(srv.URL, "admin", "secret")
+	c, err := New(mustParseURL(srv.URL), "admin", "secret")
 	if err != nil {
 		t.Fatal(err)
 	}

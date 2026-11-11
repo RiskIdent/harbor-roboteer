@@ -13,7 +13,7 @@ import (
 )
 
 func TestStartWaitsForInFlightRequests(t *testing.T) {
-	s, err := NewServer(t.Context(), ":0", slog.New(slog.DiscardHandler), nil)
+	s, err := NewServer(t.Context(), ":0", slog.New(slog.DiscardHandler), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestStartWaitsForInFlightRequests(t *testing.T) {
 }
 
 func TestSlowRequestHeadersAreCutOff(t *testing.T) {
-	s, err := NewServer(t.Context(), "127.0.0.1:0", slog.New(slog.DiscardHandler), nil)
+	s, err := NewServer(t.Context(), "127.0.0.1:0", slog.New(slog.DiscardHandler), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

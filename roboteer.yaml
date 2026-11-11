@@ -1,0 +1,5 @@
+# Example config file
+
+x-my-extensions: extensions are allowed, see https://docs.docker.com/reference/compose-file/extension/
+
+known_claims: [repository, repository_owner, environment]

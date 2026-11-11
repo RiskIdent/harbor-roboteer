@@ -35,7 +35,7 @@ type Client struct {
 	api *v2client.HarborAPI
 }
 
-func New(harborURL, username, password string) (*Client, error) {
+func New(harborURL *url.URL, username, password string) (*Client, error) {
 	if err := (validation.Errors{
 		"url":      validation.Validate(harborURL, validation.Required),
 		"username": validation.Validate(username, validation.Required),
@@ -44,18 +44,14 @@ func New(harborURL, username, password string) (*Client, error) {
 		return nil, fmt.Errorf("harbor config: %w", err)
 	}
 
-	u, err := url.Parse(harborURL)
-	if err != nil {
-		return nil, fmt.Errorf("parse harbor url: %w", err)
-	}
-	if u.Scheme == "" || u.Host == "" {
+	if harborURL.Scheme == "" || harborURL.Host == "" {
 		return nil, fmt.Errorf("harbor url %q must include scheme and host, e.g. https://harbor.example.com", harborURL)
 	}
-	u.Path = v2client.DefaultBasePath
+	harborURL.Path = v2client.DefaultBasePath
 
 	return &Client{
 		api: v2client.New(v2client.Config{
-			URL:      u,
+			URL:      harborURL,
 			AuthInfo: httptransport.BasicAuth(username, password),
 		}),
 	}, nil

@@ -171,9 +171,9 @@ args: [] # @schema item: string
 
 # Environment variables for the container.
 env: [] # @schema itemRef: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.EnvVar
-  # - name: HARBOR_URL
+  # - name: ROBOTEER_HARBOR_URL
   #   value: https://harbor.example.com
-  # - name: HARBOR_PASSWORD
+  # - name: ROBOTEER_HARBOR_PASSWORD
   #   valueFrom:
   #     secretKeyRef:
   #       name: harbor-roboteer
