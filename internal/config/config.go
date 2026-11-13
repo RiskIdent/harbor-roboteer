@@ -15,7 +15,59 @@ import (
 
 type Config struct {
 	KnownClaims []string `yaml:"known_claims"`
+
+	Identities []Identity `yaml:"identities"`
+
+	Projects Projects `yaml:"projects"`
+
+	AllProjects AllProjects `yaml:"all_projects"`
+
+	System System `yaml:"system"`
 }
+
+type Identity map[string]Pattern
+
+type Projects struct {
+	// Map of roboteer project roles. These can be referenced in the grants to deduplicate your config.
+	Roles map[string]ProjectPermissions `yaml:"roles"`
+	// Map of permission grants. The map key is the grant "ID" (shown in audit logs).
+	// All matching grants add up; nothing denies.
+	Grants map[string]ProjectGrant `yaml:"grants"`
+}
+
+type ProjectPermissions map[string][]string
+
+type ProjectGrant struct {
+	When        Condition          `yaml:"when,omitempty"`
+	Projects    []Pattern          `yaml:"projects"`
+	Roles       []Pattern          `yaml:"roles"`
+	Permissions ProjectPermissions `yaml:"permissions"`
+}
+
+type AllProjects struct {
+	// Grants on all projects, including ones created later ("Cover all projects" in Harbor).
+	// Uses the project roles.
+	// All matching grants add up; nothing denies.
+	Grants map[string]ProjectGrant `yaml:"grants"`
+}
+
+type System struct {
+	// Map of roboteer system-scope roles. These can be referenced in the grants to deduplicate your config.
+	Roles map[string]SystemPermissions `yaml:"roles"`
+	// Map of permission grants. The map key is the grant "ID" (shown in audit logs).
+	// All matching grants add up; nothing denies.
+	Grants map[string]SystemGrant `yaml:"grants"`
+}
+
+type SystemPermissions map[string][]string
+
+type SystemGrant struct {
+	When        Condition         `yaml:"when,omitempty"`
+	Roles       []Pattern         `yaml:"roles"`
+	Permissions SystemPermissions `yaml:"permissions"`
+}
+
+type Condition map[string]string
 
 type Watcher struct {
 	path       string
