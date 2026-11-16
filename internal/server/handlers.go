@@ -51,19 +51,15 @@ type postTokenResponse struct {
 	DeleteToken string           `json:"deleteToken"`
 }
 
-var untracedPaths = []string{
+var unmonitoredPaths = []string{
 	"/health",
 }
 
 func (s *Server) registerHandlers() {
 	router := s.router
 
-	handle := func(pattern string, h http.HandlerFunc) {
-		router.Handle(pattern, s.metrics.WrapHandler(pattern, h))
-	}
-
-	handle("POST /token", s.postToken)
-	handle("DELETE /token", s.deleteToken)
+	router.HandleFunc("POST /token", s.postToken)
+	router.HandleFunc("DELETE /token", s.deleteToken)
 
 	router.HandleFunc("GET /health", s.health)
 }

@@ -27,6 +27,7 @@ import (
 type ServeOptions struct {
 	Config         string   `koanf:"config"`
 	Addr           string   `koanf:"addr"`
+	MetricsAddr    string   `koanf:"metrics-addr"`
 	LogLevel       string   `koanf:"log-level"`
 	LogFormat      string   `koanf:"log-format"`
 	HarborURL      *url.URL `koanf:"harbor-url"`
@@ -34,23 +35,17 @@ type ServeOptions struct {
 	HarborPassword string   `koanf:"harbor-password"`
 	OIDCIssuer     string   `koanf:"oidc-issuer"`
 	OIDCAudience   string   `koanf:"oidc-audience"`
-)
-
-var (
-	addr        string
-	metricsAddr string
-	logLevel    string
-	logFormat   string
 
 	Help bool `koanf:"help"` // ignored, but added to keep "ErrorUnused" happy
 }
 
 var ServeDefaults = ServeOptions{
-	Config:    "roboteer.yaml",
-	Addr:      "127.0.0.1:8080",
-	LogLevel:  "info",
-	LogFormat: "json",
-	HarborURL: &url.URL{},
+	Config:      "roboteer.yaml",
+	Addr:        "127.0.0.1:8080",
+	MetricsAddr: "127.0.0.1:9090",
+	LogLevel:    "info",
+	LogFormat:   "json",
+	HarborURL:   &url.URL{},
 
 	OIDCAudience: "harbor-roboteer",
 }
@@ -91,7 +86,7 @@ to quickly create a Cobra application.`,
 		defer tracing.ShutdownTracer(context.WithoutCancel(ctx), log, traceProvider)
 
 		reg := metrics.NewRegistry()
-		ms, err := metrics.NewServer(ctx, log, metricsAddr, reg)
+		ms, err := metrics.NewServer(ctx, log, opt.MetricsAddr, reg)
 		if err != nil {
 			return err
 		}
@@ -147,7 +142,7 @@ func init() {
 
 	serveCmd.Flags().StringP("config", "c", ServeDefaults.Config, "config file path, env: $ROBOTEER_CONFIG")
 	serveCmd.Flags().StringP("addr", "a", ServeDefaults.Addr, "server addr, env: $ROBOTEER_ADDR")
-	serveCmd.Flags().StringVarP(&metricsAddr, "metrics-addr", "", "127.0.0.1:9090", "metrics server addr")
+	serveCmd.Flags().String("metrics-addr", ServeDefaults.MetricsAddr, "metrics server addr, env: $ROBOTEER_METRICS_ADDR")
 	serveCmd.Flags().StringP("log-level", "", ServeDefaults.LogLevel, "log level, env: $ROBOTEER_LOG_LEVEL")
 	serveCmd.Flags().StringP("log-format", "", ServeDefaults.LogFormat, "log format, env: $ROBOTEER_LOG_FORMAT")
 	serveCmd.Flags().String("harbor-url", ServeDefaults.HarborURL.String(), "Harbor base URL, env: $ROBOTEER_HARBOR_URL")

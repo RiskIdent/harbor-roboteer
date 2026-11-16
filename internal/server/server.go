@@ -26,7 +26,7 @@ type Server struct {
 	server        *http.Server
 	listener      net.Listener
 	log           *slog.Logger
-	metrics       metrics.Middleware
+	robotOps      *prometheus.CounterVec // robot account operations in Harbor, by operation and result
 	harbor        harborClient
 	configWatcher configWatcher
 	jwtOpts       []jwt.ParseOption // key set, issuer and audience to verify caller tokens
@@ -69,13 +69,14 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, reg *metrics.
 		server: &http.Server{
 			ReadHeaderTimeout: readHeaderTimeout,
 			Handler: ChainMiddlewares(r,
-				TracingMiddleware(untracedPaths...),
+				TracingMiddleware(unmonitoredPaths...),
 				LoggingMiddleware(log),
+				MetricsMiddleware(reg.Registry, unmonitoredPaths...), // must stay last: reads r.Pattern
 			),
 		},
 		listener:      l,
 		log:           log,
-		metrics:       metrics.NewMiddleware(reg.Registry, nil),
+		robotOps:      robotOps,
 		harbor:        hc,
 		configWatcher: cfg,
 		jwtOpts:       jwtOpts,
