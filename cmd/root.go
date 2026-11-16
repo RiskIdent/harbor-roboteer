@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/RiskIdent/harbor-roboteer/internal/version"
+	promversion "github.com/prometheus/common/version"
 	"github.com/spf13/cobra"
 )
 
@@ -25,6 +26,7 @@ to quickly create a Cobra application.`,
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute(ctx context.Context) {
 	rootCmd.Version = version.Get()
+	promversion.Version = rootCmd.Version
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		os.Exit(1)
 	}

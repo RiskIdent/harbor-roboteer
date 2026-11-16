@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -24,7 +25,7 @@ type MetricsServer interface {
 	Start(ctx context.Context) error
 }
 
-func NewServer(ctx context.Context, log *slog.Logger, addr string, reg *Registry) (*Server, error) {
+func NewServer(ctx context.Context, log *slog.Logger, addr string, reg *prometheus.Registry) (*Server, error) {
 	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("metrics listener %s: %w", addr, err)
