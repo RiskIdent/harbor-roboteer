@@ -7,11 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors/version"
 )
 
-type Registry struct {
-	*prometheus.Registry
-}
-
-func NewRegistry() *Registry {
+func NewRegistry() *prometheus.Registry {
 	reg := prometheus.NewRegistry()
 
 	reg.MustRegister(
@@ -20,5 +16,5 @@ func NewRegistry() *Registry {
 		version.NewCollector("harbor_roboteer", version.WithExtraConstLabels(prometheus.Labels{"version": appversion.Get()})),
 	)
 
-	return &Registry{reg}
+	return reg
 }

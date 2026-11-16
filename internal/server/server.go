@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/RiskIdent/harbor-roboteer/internal/config"
-	"github.com/RiskIdent/harbor-roboteer/internal/metrics"
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/models"
 	"github.com/lestrrat-go/jwx/v4/jwt"
 	"github.com/prometheus/client_golang/prometheus"
@@ -49,13 +48,13 @@ type IServer interface {
 	Start(ctx context.Context) error
 }
 
-func NewServer(ctx context.Context, addr string, log *slog.Logger, reg *metrics.Registry, hc harborClient, cfg configWatcher, jwtOpts ...jwt.ParseOption) (*Server, error) {
+func NewServer(ctx context.Context, addr string, log *slog.Logger, reg *prometheus.Registry, hc harborClient, cfg configWatcher, jwtOpts ...jwt.ParseOption) (*Server, error) {
 	r := http.NewServeMux()
 	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create the listener with addr %s, error: %w", addr, err)
 	}
-	robotOps := promauto.With(reg.Registry).NewCounterVec(prometheus.CounterOpts{
+	robotOps := promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 		Name: "harbor_roboteer_robot_operations_total",
 		Help: "Robot account operations in Harbor, by operation and result.",
 	}, []string{"operation", "result"})
@@ -71,7 +70,7 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, reg *metrics.
 			Handler: ChainMiddlewares(r,
 				TracingMiddleware(unmonitoredPaths...),
 				LoggingMiddleware(log),
-				MetricsMiddleware(reg.Registry, unmonitoredPaths...), // must stay last: reads r.Pattern
+				MetricsMiddleware(reg, unmonitoredPaths...), // must stay last: reads r.Pattern
 			),
 		},
 		listener:      l,
