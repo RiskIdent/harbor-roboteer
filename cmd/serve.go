@@ -112,7 +112,7 @@ to quickly create a Cobra application.`,
 		}
 		defer func() { _ = keys.Close(context.WithoutCancel(ctx)) }()
 
-		s, err := server.NewServer(ctx, opt.Addr, log, reg, hc, configWatcher,
+		s, err := server.NewServer(ctx, opt.Addr, log, hc, configWatcher,
 			jwt.WithKeySet(keys.Set),
 			jwt.WithIssuer(opt.OIDCIssuer),
 			jwt.WithAudience(opt.OIDCAudience),
@@ -120,6 +120,7 @@ to quickly create a Cobra application.`,
 		if err != nil {
 			return err
 		}
+		reg.MustRegister(s.Collectors()...)
 
 		g, gctx := errgroup.WithContext(ctx)
 		g.Go(func() error {

@@ -106,61 +106,76 @@ func TracingMiddleware(untracedPaths ...string) Middleware {
 	}))
 }
 
-func MetricsMiddleware(reg prometheus.Registerer, skipPaths ...string) Middleware {
+type httpMetrics struct {
+	requests     *prometheus.CounterVec
+	duration     *prometheus.HistogramVec
+	requestSize  *prometheus.HistogramVec
+	responseSize *prometheus.HistogramVec
+	inflight     prometheus.Gauge
+	skip         func(*http.Request) bool
+}
+
+func newHTTPMetrics(skipPaths ...string) *httpMetrics {
 	labels := []string{"route", "code"}
-	requests := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "http_requests_total",
-		Help: "HTTP requests by route and status code.",
-	}, labels)
-	duration := prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "http_request_duration_seconds",
-		Help:    "HTTP request latency by route and status code.",
-		Buckets: prometheus.DefBuckets,
-	}, labels)
 	sizeBuckets := prometheus.ExponentialBuckets(100, 10, 6) // 100 B .. 10 MB
-	requestSize := prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "http_request_size_bytes",
-		Help:    "HTTP request body size by route and status code.",
-		Buckets: sizeBuckets,
-	}, labels)
-	responseSize := prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "http_response_size_bytes",
-		Help:    "HTTP response body size by route and status code.",
-		Buckets: sizeBuckets,
-	}, labels)
-	inflight := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "http_requests_in_flight",
-		Help: "HTTP requests currently being served.",
-	})
-	reg.MustRegister(requests, duration, requestSize, responseSize, inflight)
-	skip := matchesAny(skipPaths)
-
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if skip(r) {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			inflight.Inc()
-			rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-			start := time.Now()
-
-			defer func() {
-				inflight.Dec()
-				route := cmp.Or(r.Pattern, "unmatched")
-				code := strconv.Itoa(rw.statusCode)
-				requests.WithLabelValues(route, code).Inc()
-				duration.WithLabelValues(route, code).Observe(time.Since(start).Seconds())
-				responseSize.WithLabelValues(route, code).Observe(float64(rw.bytesWritten))
-				if r.ContentLength >= 0 {
-					requestSize.WithLabelValues(route, code).Observe(float64(r.ContentLength))
-				}
-			}()
-
-			next.ServeHTTP(rw, r)
-		})
+	return &httpMetrics{
+		requests: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "HTTP requests by route and status code.",
+		}, labels),
+		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "http_request_duration_seconds",
+			Help:    "HTTP request latency by route and status code.",
+			Buckets: prometheus.DefBuckets,
+		}, labels),
+		requestSize: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "http_request_size_bytes",
+			Help:    "HTTP request body size by route and status code.",
+			Buckets: sizeBuckets,
+		}, labels),
+		responseSize: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "http_response_size_bytes",
+			Help:    "HTTP response body size by route and status code.",
+			Buckets: sizeBuckets,
+		}, labels),
+		inflight: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "http_requests_in_flight",
+			Help: "HTTP requests currently being served.",
+		}),
+		skip: matchesAny(skipPaths),
 	}
+}
+
+func (m *httpMetrics) collectors() []prometheus.Collector {
+	return []prometheus.Collector{m.requests, m.duration, m.requestSize, m.responseSize, m.inflight}
+}
+
+func (m *httpMetrics) Middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if m.skip(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		m.inflight.Inc()
+		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		start := time.Now()
+
+		defer func() {
+			m.inflight.Dec()
+			route := cmp.Or(r.Pattern, "unmatched")
+			code := strconv.Itoa(rw.statusCode)
+			m.requests.WithLabelValues(route, code).Inc()
+			m.duration.WithLabelValues(route, code).Observe(time.Since(start).Seconds())
+			m.responseSize.WithLabelValues(route, code).Observe(float64(rw.bytesWritten))
+			// shortcut: chunked uploads have no Content-Length (-1) and are not observed, count body reads if they matter
+			if r.ContentLength >= 0 {
+				m.requestSize.WithLabelValues(route, code).Observe(float64(r.ContentLength))
+			}
+		}()
+
+		next.ServeHTTP(rw, r)
+	})
 }
 
 func matchesAny(patterns []string) func(*http.Request) bool {

@@ -13,7 +13,6 @@ import (
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/models"
 	"github.com/lestrrat-go/jwx/v4/jwt"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 // readHeaderTimeout limits how long a client may take to send the request
@@ -26,6 +25,7 @@ type Server struct {
 	listener      net.Listener
 	log           *slog.Logger
 	robotOps      *prometheus.CounterVec // robot account operations in Harbor, by operation and result
+	httpMetrics   *httpMetrics
 	harbor        harborClient
 	configWatcher configWatcher
 	jwtOpts       []jwt.ParseOption // key set, issuer and audience to verify caller tokens
@@ -48,13 +48,13 @@ type IServer interface {
 	Start(ctx context.Context) error
 }
 
-func NewServer(ctx context.Context, addr string, log *slog.Logger, reg *prometheus.Registry, hc harborClient, cfg configWatcher, jwtOpts ...jwt.ParseOption) (*Server, error) {
+func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClient, cfg configWatcher, jwtOpts ...jwt.ParseOption) (*Server, error) {
 	r := http.NewServeMux()
 	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create the listener with addr %s, error: %w", addr, err)
 	}
-	robotOps := promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+	robotOps := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "harbor_roboteer_robot_operations_total",
 		Help: "Robot account operations in Harbor, by operation and result.",
 	}, []string{"operation", "result"})
@@ -63,6 +63,7 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, reg *promethe
 			robotOps.WithLabelValues(op, res)
 		}
 	}
+	httpMetrics := newHTTPMetrics(unmonitoredPaths...)
 	s := &Server{
 		router: r,
 		server: &http.Server{
@@ -70,18 +71,24 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, reg *promethe
 			Handler: ChainMiddlewares(r,
 				TracingMiddleware(unmonitoredPaths...),
 				LoggingMiddleware(log),
-				MetricsMiddleware(reg, unmonitoredPaths...), // must stay last: reads r.Pattern
+				httpMetrics.Middleware, // must stay last: reads r.Pattern
 			),
 		},
 		listener:      l,
 		log:           log,
 		robotOps:      robotOps,
+		httpMetrics:   httpMetrics,
 		harbor:        hc,
 		configWatcher: cfg,
 		jwtOpts:       jwtOpts,
 	}
 	s.registerHandlers()
 	return s, nil
+}
+
+// Collectors returns the server's metrics, for the caller to register.
+func (s *Server) Collectors() []prometheus.Collector {
+	return append(s.httpMetrics.collectors(), s.robotOps)
 }
 
 func (s *Server) Start(ctx context.Context) error {
