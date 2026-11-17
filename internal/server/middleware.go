@@ -33,7 +33,8 @@ type responseWriter struct {
 
 func (rw *responseWriter) WriteHeader(code int) {
 	if !rw.wroteHeader {
-		rw.statusCode, rw.wroteHeader = code, true
+		rw.statusCode = code
+		rw.wroteHeader = true
 	}
 	rw.ResponseWriter.WriteHeader(code)
 }

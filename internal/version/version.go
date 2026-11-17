@@ -4,7 +4,7 @@ import (
 	"runtime/debug"
 )
 
-var version string
+var version string // set by ldflags in goreleaser
 
 func Get() string {
 	if version != "" {
