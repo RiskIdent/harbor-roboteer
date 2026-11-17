@@ -51,7 +51,7 @@ type postTokenResponse struct {
 	DeleteToken string           `json:"deleteToken"`
 }
 
-var untracedPaths = []string{
+var unmonitoredPaths = []string{
 	"/health",
 }
 
@@ -111,6 +111,7 @@ func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
 	/* TODO: remove test log */ s.log.DebugContext(ctx, "config", slog.Any("knownClaims", cfg.KnownClaims))
 
 	created, err := s.harbor.CreateRobot(r.Context(), name, req.Project, deleteTokenPrefix+hex.EncodeToString(hash[:]))
+	s.countRobotOp("create", err)
 	if errors.Is(err, harbor.ErrRobotExists) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
@@ -165,6 +166,7 @@ func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = s.harbor.DeleteRobot(r.Context(), robotID)
+	s.countRobotOp("delete", err)
 	if errors.Is(err, harbor.ErrRobotNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -175,6 +177,16 @@ func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// countRobotOp records the outcome of a Harbor create or delete call.
+// Requests rejected before reaching Harbor are not counted here.
+func (s *Server) countRobotOp(op string, err error) {
+	result := "success"
+	if err != nil {
+		result = "failure"
+	}
+	s.robotOps.WithLabelValues(op, result).Inc()
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {

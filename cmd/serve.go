@@ -10,6 +10,7 @@ import (
 	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
 	"github.com/RiskIdent/harbor-roboteer/internal/jwks"
 	"github.com/RiskIdent/harbor-roboteer/internal/logger"
+	"github.com/RiskIdent/harbor-roboteer/internal/metrics"
 	"github.com/RiskIdent/harbor-roboteer/internal/server"
 	"github.com/RiskIdent/harbor-roboteer/internal/tracing"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -20,11 +21,13 @@ import (
 	"github.com/lestrrat-go/jwx/v4/jwt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"golang.org/x/sync/errgroup"
 )
 
 type ServeOptions struct {
 	Config         string   `koanf:"config"`
 	Addr           string   `koanf:"addr"`
+	MetricsAddr    string   `koanf:"metrics-addr"`
 	LogLevel       string   `koanf:"log-level"`
 	LogFormat      string   `koanf:"log-format"`
 	HarborURL      *url.URL `koanf:"harbor-url"`
@@ -37,11 +40,12 @@ type ServeOptions struct {
 }
 
 var ServeDefaults = ServeOptions{
-	Config:    "roboteer.yaml",
-	Addr:      "127.0.0.1:8080",
-	LogLevel:  "info",
-	LogFormat: "json",
-	HarborURL: &url.URL{},
+	Config:      "roboteer.yaml",
+	Addr:        "127.0.0.1:8080",
+	MetricsAddr: "127.0.0.1:9090",
+	LogLevel:    "info",
+	LogFormat:   "json",
+	HarborURL:   &url.URL{},
 
 	OIDCAudience: "harbor-roboteer",
 }
@@ -75,11 +79,17 @@ to quickly create a Cobra application.`,
 		}
 		defer func() { _ = configWatcher.Close() }()
 
-		traceProvider, err := tracing.NewTracerProvider(ctx, log, cmd.Root().Version)
+		traceProvider, err := tracing.NewTracerProvider(ctx, log)
 		if err != nil {
 			return err
 		}
 		defer tracing.ShutdownTracer(context.WithoutCancel(ctx), log, traceProvider)
+
+		reg := metrics.NewRegistry()
+		ms, err := metrics.NewServer(ctx, log, opt.MetricsAddr, reg)
+		if err != nil {
+			return err
+		}
 
 		hc, err := harbor.New(
 			opt.HarborURL,
@@ -110,9 +120,17 @@ to quickly create a Cobra application.`,
 		if err != nil {
 			return err
 		}
+		reg.MustRegister(s.Collectors()...)
 
-		if err := s.Start(ctx); err != nil {
-			return fmt.Errorf("run server: %w", err)
+		g, gctx := errgroup.WithContext(ctx)
+		g.Go(func() error {
+			return ms.Start(gctx)
+		})
+		g.Go(func() error {
+			return s.Start(gctx)
+		})
+		if err := g.Wait(); err != nil {
+			return fmt.Errorf("run servers: %w", err)
 		}
 
 		log.InfoContext(ctx, "server shutdown successfully")
@@ -125,6 +143,7 @@ func init() {
 
 	serveCmd.Flags().StringP("config", "c", ServeDefaults.Config, "config file path, env: $ROBOTEER_CONFIG")
 	serveCmd.Flags().StringP("addr", "a", ServeDefaults.Addr, "server addr, env: $ROBOTEER_ADDR")
+	serveCmd.Flags().String("metrics-addr", ServeDefaults.MetricsAddr, "metrics server addr, env: $ROBOTEER_METRICS_ADDR")
 	serveCmd.Flags().StringP("log-level", "", ServeDefaults.LogLevel, "log level, env: $ROBOTEER_LOG_LEVEL")
 	serveCmd.Flags().StringP("log-format", "", ServeDefaults.LogFormat, "log format, env: $ROBOTEER_LOG_FORMAT")
 	serveCmd.Flags().String("harbor-url", ServeDefaults.HarborURL.String(), "Harbor base URL, env: $ROBOTEER_HARBOR_URL")
