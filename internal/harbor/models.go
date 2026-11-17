@@ -78,10 +78,11 @@ func ParseDescriptionKV(desc string) DescriptionKV {
 		if unicode.IsSpace(firstChar) {
 			break
 		}
-		key, value, ok := strings.Cut(line, ": ")
-		if !ok {
+		key, value, ok := strings.Cut(line, ":")
+		if !ok || (value != "" && !strings.HasPrefix(value, " ")) {
 			break
 		}
+		value = strings.TrimPrefix(value, " ")
 		if !validKeyRegexp.MatchString(key) {
 			break
 		}

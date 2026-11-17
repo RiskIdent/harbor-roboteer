@@ -87,7 +87,7 @@ func parseRobotExpiry(desc DescriptionKV, creation strfmt.DateTime, duration *in
 	if early, err := time.Parse(earlyExpiryFormat, desc.KV.Get(earlyExpiryKey)); err == nil {
 		return &early
 	}
-	if duration != nil {
+	if duration != nil && *duration != -1 {
 		expiry := time.Time(creation).Add(24 * time.Hour * time.Duration(*duration))
 		return &expiry
 	}
