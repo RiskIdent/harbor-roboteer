@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/RiskIdent/harbor-roboteer/internal/config"
-	"github.com/goharbor/go-client/pkg/sdk/v2.0/models"
+	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
+	"github.com/RiskIdent/harbor-roboteer/internal/version"
 	"github.com/lestrrat-go/jwx/v4/jwt"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -20,6 +21,7 @@ import (
 const readHeaderTimeout = 10 * time.Second
 
 type Server struct {
+	version       string
 	router        *http.ServeMux
 	server        *http.Server
 	listener      net.Listener
@@ -32,8 +34,8 @@ type Server struct {
 }
 
 type harborClient interface {
-	CreateRobot(ctx context.Context, name, project, description string) (*models.RobotCreated, error)
-	GetRobotByID(ctx context.Context, id int64) (*models.Robot, error)
+	CreateRobot(ctx context.Context, robot harbor.RobotCreate) (harbor.Robot, error)
+	GetRobotByID(ctx context.Context, id int64) (harbor.Robot, error)
 	DeleteRobot(ctx context.Context, id int64) error
 
 	Ping(ctx context.Context) error
@@ -65,7 +67,8 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClie
 	}
 	httpMetrics := newHTTPMetrics(unmonitoredPaths...)
 	s := &Server{
-		router: r,
+		version: version.Get(),
+		router:  r,
 		server: &http.Server{
 			ReadHeaderTimeout: readHeaderTimeout,
 			Handler: ChainMiddlewares(r,

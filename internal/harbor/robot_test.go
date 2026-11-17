@@ -94,7 +94,11 @@ func TestCreateRobotRetriesOnConflict(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"id": 1, "name": "robot$" + name, "secret": "s"})
 	})
 
-	created, err := c.CreateRobot(t.Context(), "repo:acme/foo", "acme", "desc")
+	created, err := c.CreateRobot(t.Context(), RobotCreate{
+		NameBase:    "repo:acme/foo",
+		Project:     "acme",
+		Description: DescriptionKV{Message: "desc"},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +125,11 @@ func TestCreateRobotGivesUpAfterAttempts(t *testing.T) {
 		w.WriteHeader(http.StatusConflict)
 	})
 
-	if _, err := c.CreateRobot(t.Context(), "repo:acme/foo", "acme", "desc"); !errors.Is(err, ErrRobotExists) {
+	if _, err := c.CreateRobot(t.Context(), RobotCreate{
+		NameBase:    "repo:acme/foo",
+		Project:     "acme",
+		Description: DescriptionKV{Message: "desc"},
+	}); !errors.Is(err, ErrRobotExists) {
 		t.Fatalf("err = %v, want ErrRobotExists", err)
 	}
 	if calls != createAttempts {
