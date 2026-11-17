@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 	"unicode"
-	"unicode/utf8"
 )
 
 type RobotCreate struct {
@@ -55,8 +54,6 @@ func (d DescriptionKV) String() string {
 	return sb.String()
 }
 
-var validKeyRegexp = regexp.MustCompile(`^[a-zA-Z0-9\-]+(-[a-zA-Z0-9\-]+)*$`)
-
 func ParseDescriptionKV(desc string) DescriptionKV {
 	lines := slices.Collect(strings.Lines(strings.TrimRightFunc(desc, unicode.IsSpace)))
 
@@ -74,19 +71,10 @@ func ParseDescriptionKV(desc string) DescriptionKV {
 			lines = lines[:i] // "pop" line
 			break
 		}
-		firstChar, _ := utf8.DecodeRuneInString(line)
-		if unicode.IsSpace(firstChar) {
+		key, value, ok := cutKeyValue(line)
+		if !ok {
 			break
 		}
-		key, value, ok := strings.Cut(line, ":")
-		if !ok || (value != "" && !strings.HasPrefix(value, " ")) {
-			break
-		}
-		value = strings.TrimPrefix(value, " ")
-		if !validKeyRegexp.MatchString(key) {
-			break
-		}
-
 		lines = lines[:i] // "pop" line
 		if kv == nil {
 			kv = http.Header{}
@@ -103,4 +91,20 @@ func ParseDescriptionKV(desc string) DescriptionKV {
 		Message: strings.TrimRightFunc(strings.Join(lines, "\n"), unicode.IsSpace),
 		KV:      kv,
 	}
+}
+
+var validKeyRegexp = regexp.MustCompile(`^[a-zA-Z0-9\-]+(-[a-zA-Z0-9\-]+)*$`)
+
+func cutKeyValue(s string) (string, string, bool) {
+	key, value, ok := strings.Cut(s, ":")
+	if !ok {
+		return "", "", false
+	}
+	if value != "" && !strings.HasPrefix(value, " ") {
+		return "", "", false
+	}
+	if !validKeyRegexp.MatchString(key) {
+		return "", "", false
+	}
+	return key, strings.TrimSpace(value), true
 }

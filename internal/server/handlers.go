@@ -1,6 +1,7 @@
 package server
 
 import (
+	"cmp"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -99,10 +100,9 @@ func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sub, _ := tok.Subject()
 	name := req.Name
-	sub := "(unknown JWT sub)"
 	if name == "" {
-		sub, _ = tok.Subject()
 		name = sub
 	}
 	if name == "" {
@@ -122,7 +122,7 @@ func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
 		Project:  req.Project,
 		Expiry:   new(time.Now().Add(time.Hour)), // TODO: probably want to template this
 		Description: harbor.DescriptionKV{
-			Message: fmt.Sprintf("Robot account for OIDC user %q", sub),
+			Message: fmt.Sprintf("Robot account for OIDC user %q", cmp.Or(sub, "(unknown JWT sub)")),
 			KV: http.Header{
 				deleteTokenKey: {deleteTokenPrefix + hex.EncodeToString(hash[:])},
 				"Managed-By":   {"harbor-roboteer " + s.version},
