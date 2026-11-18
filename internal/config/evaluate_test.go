@@ -1,7 +1,9 @@
 package config
 
 import (
+	"bytes"
 	"iter"
+	"log/slog"
 	"maps"
 	"reflect"
 	"testing"
@@ -339,6 +341,51 @@ func TestEvaluateProjectPermissionsError(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			if _, err := test.config.Evaluate(test.claims); err == nil {
 				t.Fatal("Evaluate() returned no error")
+			}
+		})
+	}
+}
+
+func TestAppliedGrantLogSnapshot(t *testing.T) {
+	t.Parallel()
+	grant := AppliedGrant{
+		ID:       "own-project",
+		Scope:    AppliedGrantProject,
+		Projects: []string{"acme-api"},
+		Roles:    []string{"pull", "push"},
+		Permissions: map[string][]string{
+			"repository": {"pull", "push"},
+		},
+	}
+	options := &slog.HandlerOptions{ReplaceAttr: func(_ []string, attr slog.Attr) slog.Attr {
+		if attr.Key == slog.TimeKey {
+			return slog.Attr{}
+		}
+		return attr
+	}}
+	tests := []struct {
+		name    string
+		handler func(*bytes.Buffer) slog.Handler
+		want    string
+	}{
+		{
+			name:    "json",
+			handler: func(output *bytes.Buffer) slog.Handler { return slog.NewJSONHandler(output, options) },
+			want: `{"level":"INFO","msg":"robot created","grants":[{"id":"own-project","scope":"project","projects":["acme-api"],"roles":["pull","push"],"permissions":{"repository":["pull","push"]}}]}
+`,
+		},
+		{
+			name:    "text",
+			handler: func(output *bytes.Buffer) slog.Handler { return slog.NewTextHandler(output, options) },
+			want:    "level=INFO msg=\"robot created\" grants=\"[{id: own-project, scope: project, projects: [acme-api], roles: [pull, push], permissions: {repository: [pull, push]}}]\"\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var output bytes.Buffer
+			slog.New(test.handler(&output)).InfoContext(t.Context(), "robot created", "grants", []AppliedGrant{grant})
+			if got := output.String(); got != test.want {
+				t.Errorf("wrong log output\nwant: %s\ngot:  %s", test.want, got)
 			}
 		})
 	}

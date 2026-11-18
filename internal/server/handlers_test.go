@@ -20,9 +20,13 @@ func TestBuildRobotCreate(t *testing.T) {
 			"repository": config.MustPattern("acme/{repo}"),
 		}},
 		Projects: config.Projects{
+			Roles: map[string]config.ProjectPermissions{
+				"pull": {"resource": {"role-action"}},
+			},
 			Grants: map[string]config.ProjectGrant{
 				"project": {
 					Projects: []config.Pattern{config.MustPattern("{repo}")},
+					Roles:    []config.Pattern{config.MustPattern("pull")},
 					Permissions: config.ProjectPermissions{
 						"resource": {"project-action"},
 					},
@@ -56,7 +60,7 @@ func TestBuildRobotCreate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := buildRobotCreate(robotCreateOptions{
+	got, grants, err := buildRobotCreate(robotCreateOptions{
 		Config:      cfg,
 		Token:       token,
 		Name:        "requested-name",
@@ -69,7 +73,7 @@ func TestBuildRobotCreate(t *testing.T) {
 	want := harbor.RobotCreate{
 		NameBase: "requested-name",
 		ProjectPermissions: map[string]harbor.Permissions{
-			"api": {"resource": {"project-action"}},
+			"api": {"resource": {"project-action", "role-action"}},
 		},
 		AllProjectPermissions: harbor.Permissions{"resource": {"all-project-action"}},
 		SystemPermissions:     harbor.Permissions{"resource": {"system-action"}},
@@ -80,6 +84,28 @@ func TestBuildRobotCreate(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("wrong robot create options\nwant: %#v\ngot:  %#v", want, got)
+	}
+	wantGrants := []config.AppliedGrant{
+		{
+			ID:          "all projects",
+			Scope:       config.AppliedGrantAllProject,
+			Permissions: map[string][]string{"resource": {"all-project-action"}},
+		},
+		{
+			ID:          "project",
+			Scope:       config.AppliedGrantProject,
+			Projects:    []string{"api"},
+			Roles:       []string{"pull"},
+			Permissions: map[string][]string{"resource": {"project-action"}},
+		},
+		{
+			ID:          "system",
+			Scope:       config.AppliedGrantSystem,
+			Permissions: map[string][]string{"resource": {"system-action"}},
+		},
+	}
+	if !reflect.DeepEqual(grants, wantGrants) {
+		t.Errorf("wrong applied grants\nwant: %#v\ngot:  %#v", wantGrants, grants)
 	}
 }
 
@@ -118,7 +144,7 @@ func TestBuildRobotCreateErrors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := buildRobotCreate(robotCreateOptions{
+			_, _, err := buildRobotCreate(robotCreateOptions{
 				Config: test.config,
 				Token:  token,
 			})

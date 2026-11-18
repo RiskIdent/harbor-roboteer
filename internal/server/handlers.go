@@ -107,7 +107,7 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 
 	cfg := s.configWatcher.Config()
 	deleteToken := rand.Text()
-	robot, err := buildRobotCreate(robotCreateOptions{
+	robot, grants, err := buildRobotCreate(robotCreateOptions{
 		Config:      cfg,
 		Token:       tok,
 		Name:        name,
@@ -135,6 +135,11 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to create robot account in Harbor", http.StatusBadGateway)
 		return
 	}
+	s.log.InfoContext(ctx, "created robot account",
+		slog.Int64("robotId", created.ID),
+		slog.String("robotName", created.Name),
+		slog.Any("grants", grants),
+	)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(postRobotResponse{
@@ -155,14 +160,14 @@ type robotCreateOptions struct {
 	Version     string
 }
 
-func buildRobotCreate(options robotCreateOptions) (harbor.RobotCreate, error) {
+func buildRobotCreate(options robotCreateOptions) (harbor.RobotCreate, []config.AppliedGrant, error) {
 	claims, err := options.Config.Identify(options.Token.Claims())
 	if err != nil {
-		return harbor.RobotCreate{}, fmt.Errorf("%w: %w", errIdentifyClaims, err)
+		return harbor.RobotCreate{}, nil, fmt.Errorf("%w: %w", errIdentifyClaims, err)
 	}
 	permissions, err := options.Config.Evaluate(claims)
 	if err != nil {
-		return harbor.RobotCreate{}, fmt.Errorf("%w: %w", errEvaluateConfig, err)
+		return harbor.RobotCreate{}, nil, fmt.Errorf("%w: %w", errEvaluateConfig, err)
 	}
 
 	sub, _ := options.Token.Subject()
@@ -176,7 +181,7 @@ func buildRobotCreate(options robotCreateOptions) (harbor.RobotCreate, error) {
 		Description:           fmt.Sprintf("Robot account for OIDC user %q", cmp.Or(sub, "(unknown JWT sub)")),
 		DeleteToken:           deleteTokenPrefix + hex.EncodeToString(hash[:]),
 		ManagedBy:             "harbor-roboteer " + options.Version,
-	}, nil
+	}, permissions.Grants, nil
 }
 
 func harborProjectPermissions(permissions map[string]config.ProjectPermissions) map[string]harbor.Permissions {
