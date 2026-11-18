@@ -2,6 +2,7 @@ package config
 
 import (
 	"maps"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -341,6 +342,59 @@ func TestConfigValidate(t *testing.T) {
 				t.Fatalf("unexpected error: %s", err)
 			case tc.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErr)):
 				t.Fatalf("wrong error\nwant: %q\ngot:  %v", tc.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestIdentityMatch(t *testing.T) {
+	tests := []struct {
+		name     string
+		identity Identity
+		claims   map[string]string
+		want     map[string]string
+		wantOK   bool
+	}{
+		{
+			name: "all claims match with captures",
+			identity: Identity{
+				"repository":       mustPattern(t, "acme/{repo}"),
+				"repository_owner": mustPattern(t, "{owner}"),
+			},
+			claims: map[string]string{
+				"repository":       "acme/api",
+				"repository_owner": "acme",
+			},
+			want:   map[string]string{"repo": "api", "owner": "acme"},
+			wantOK: true,
+		},
+		{
+			name:     "missing claim",
+			identity: Identity{"repository": mustPattern(t, "acme/{repo}")},
+			claims:   map[string]string{},
+		},
+		{
+			name:     "claim pattern does not match",
+			identity: Identity{"repository": mustPattern(t, "acme/{repo}")},
+			claims:   map[string]string{"repository": "contoso/api"},
+		},
+		{
+			name: "conflicting captures",
+			identity: Identity{
+				"repository": mustPattern(t, "{owner}/{repo}"),
+				"owner":      mustPattern(t, "{repo}"),
+			},
+			claims: map[string]string{
+				"repository": "acme/api",
+				"owner":      "contoso",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, ok := test.identity.Match(test.claims)
+			if ok != test.wantOK || !reflect.DeepEqual(got, test.want) {
+				t.Errorf("wrong result\nwant: %#v, %t\ngot:  %#v, %t", test.want, test.wantOK, got, ok)
 			}
 		})
 	}

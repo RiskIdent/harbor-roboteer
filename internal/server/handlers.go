@@ -76,8 +76,8 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	tok, err := jwt.ParseRequest(r, s.jwtOpts...)
 	if err != nil {
-		s.log.ErrorContext(r.Context(), "parse token")
-		s.log.DebugContext(r.Context(), "reject token", slog.Any("error", err))
+		s.log.ErrorContext(ctx, "parse token")
+		s.log.DebugContext(ctx, "reject token", slog.Any("error", err))
 		w.Header().Set("WWW-Authenticate", "Bearer")
 		http.Error(w, "invalid or missing token", http.StatusUnauthorized)
 		return
@@ -108,18 +108,30 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 		name = sub
 	}
 	if name == "" {
-		s.log.ErrorContext(r.Context(), "token has no sub claim and no name was provided in the request body")
+		s.log.ErrorContext(ctx, "token has no sub claim and no name was provided in the request body")
 		http.Error(w, "token has no sub claim, set name in the request body", http.StatusBadRequest)
 		return
 	}
 
+	cfg := s.configWatcher.Config()
+	claims, err := cfg.Identify(tok.Claims())
+	if err != nil {
+		s.log.ErrorContext(ctx, "identify claims", slog.Any("error", err))
+		http.Error(w, "incompatible identity claims", http.StatusBadRequest)
+		return
+	}
+
+	perms, err := cfg.Evaluate(claims)
+	if err != nil {
+		s.log.ErrorContext(ctx, "evaluate permissions", slog.Any("error", err))
+		http.Error(w, "failed to evaluate permissions from config", http.StatusInternalServerError)
+		return
+	}
+	_ = perms // TODO: use this in RobotCreate model
+
 	deleteToken := rand.Text()
 	hash := sha256.Sum256([]byte(deleteToken))
-
-	cfg := s.configWatcher.Config() // TODO: use config in roles mapping
-	/* TODO: remove test log */ s.log.DebugContext(ctx, "config", slog.Any("knownClaims", cfg.KnownClaims))
-
-	created, err := s.harbor.CreateRobot(r.Context(), harbor.RobotCreate{
+	created, err := s.harbor.CreateRobot(ctx, harbor.RobotCreate{
 		NameBase: name,
 		// Project:     req.Project, // TODO: implement this
 		EarlyExpiry: time.Now().Add(time.Hour), // TODO: probably want to template this
@@ -133,7 +145,7 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		s.log.ErrorContext(r.Context(), "create robot account", slog.Any("error", err))
+		s.log.ErrorContext(ctx, "create robot account", slog.Any("error", err))
 		http.Error(w, "failed to create robot account in Harbor", http.StatusBadGateway)
 		return
 	}
@@ -150,6 +162,7 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteRobot(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	token, ok := bearerToken(r)
 	if !ok {
 		w.Header().Set("WWW-Authenticate", "Bearer")
@@ -163,13 +176,13 @@ func (s *Server) deleteRobot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rb, err := s.harbor.GetRobotByID(r.Context(), robotID)
+	rb, err := s.harbor.GetRobotByID(ctx, robotID)
 	if errors.Is(err, harbor.ErrRobotNotFound) {
 		http.Error(w, errInvalidDeleteCombo, http.StatusForbidden)
 		return
 	}
 	if err != nil {
-		s.log.ErrorContext(r.Context(), "get robot account", slog.Any("error", err))
+		s.log.ErrorContext(ctx, "get robot account", slog.Any("error", err))
 		http.Error(w, "failed to get robot account from Harbor", http.StatusBadGateway)
 		return
 	}
@@ -181,14 +194,14 @@ func (s *Server) deleteRobot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.harbor.DeleteRobot(r.Context(), robotID)
+	err = s.harbor.DeleteRobot(ctx, robotID)
 	s.countRobotOp("delete", err)
 	if errors.Is(err, harbor.ErrRobotNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 	if err != nil {
-		s.log.ErrorContext(r.Context(), "delete robot account", slog.Any("error", err))
+		s.log.ErrorContext(ctx, "delete robot account", slog.Any("error", err))
 		http.Error(w, "failed to delete robot account in Harbor", http.StatusBadGateway)
 		return
 	}
