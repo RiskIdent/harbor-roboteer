@@ -30,14 +30,17 @@ func TestPermissionsHarborAccess(t *testing.T) {
 func TestRobotPermissions(t *testing.T) {
 	got := (RobotCreate{
 		SystemPermissions: Permissions{"project": {"create"}},
+		AllProjectPermissions: Permissions{
+			"repository": {"list"},
+		},
 		ProjectPermissions: map[string]Permissions{
 			"zeta":  {"repository": {"push"}},
 			"alpha": {"repository": {"pull"}},
 		},
 	}).RobotPermissions()
 
-	if len(got) != 3 {
-		t.Fatalf("permissions = %d, want 3: %#v", len(got), got)
+	if len(got) != 4 {
+		t.Fatalf("permissions = %d, want 4: %#v", len(got), got)
 	}
 	want := []struct {
 		kind      string
@@ -46,6 +49,7 @@ func TestRobotPermissions(t *testing.T) {
 		action    string
 	}{
 		{kind: "system", resource: "project", action: "create"},
+		{kind: "project", namespace: "*", resource: "repository", action: "list"},
 		{kind: "project", namespace: "alpha", resource: "repository", action: "pull"},
 		{kind: "project", namespace: "zeta", resource: "repository", action: "push"},
 	}
