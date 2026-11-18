@@ -421,3 +421,45 @@ func TestGrantPlaceholderNames(t *testing.T) {
 		})
 	}
 }
+
+func TestWhenMatchesClaims(t *testing.T) {
+	tests := []struct {
+		name   string
+		when   When
+		claims map[string]string
+		want   bool
+	}{
+		{name: "nil when matches claims", when: nil, claims: map[string]string{"repository": "acme/api"}, want: true},
+		{name: "nil claims do not match", when: When{"repository": "acme/api"}, claims: nil, want: false},
+		{name: "nil when matches nil claims", when: nil, claims: nil, want: true},
+		{
+			name: "all conditions match",
+			when: When{"repository": "acme/api", "environment": "harbor"},
+			claims: map[string]string{
+				"repository":  "acme/api",
+				"environment": "harbor",
+				"extra":       "ignored",
+			},
+			want: true,
+		},
+		{
+			name:   "value does not match",
+			when:   When{"repository": "acme/api", "environment": "harbor"},
+			claims: map[string]string{"repository": "acme/web", "environment": "harbor"},
+			want:   false,
+		},
+		{
+			name:   "required claim is missing",
+			when:   When{"repository": "acme/api", "environment": "harbor"},
+			claims: map[string]string{"repository": "acme/api"},
+			want:   false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := test.when.MatchesClaims(test.claims); got != test.want {
+				t.Errorf("MatchesClaims() = %t, want %t", got, test.want)
+			}
+		})
+	}
+}

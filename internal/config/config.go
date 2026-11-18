@@ -238,6 +238,15 @@ func (g SystemGrant) Validate(vc validationContext) error {
 
 type When map[string]string
 
+func (w When) MatchesClaims(claims map[string]string) bool {
+	for claimName, expectedValue := range w {
+		if claims[claimName] != expectedValue {
+			return false
+		}
+	}
+	return true
+}
+
 func (w When) AsIdentity() Identity {
 	identity := make(Identity, len(w))
 	for claim, value := range w {
