@@ -11,22 +11,22 @@ import (
 	"strings"
 )
 
-// Pattern is a glob pattern.
+// Pattern is plain text mixed with {capture} elements, such as "hello-{world}!".
 type Pattern []PatternElem
 
 var (
-	ErrPatternUnexpectedClosingBrace    = errors.New("unexpected closing '}' before opening '{'")
-	ErrPatternMissingClosingBrace       = errors.New("missing closing '}' after opening '{'")
-	ErrPatternUnexpectedOpeningBrace    = errors.New("expected closing '}' after opening '{', but got another opening '{'")
-	ErrPatternDuplicateGlobName         = errors.New("glob pattern name used more than once")
-	ErrPatternAdjacentGlobs             = errors.New("glob patterns must be separated by plain text")
-	ErrPatternAdjacentPlain             = errors.New("plain text elements must be separated by a glob")
-	ErrPatternEmptyGlobName             = errors.New("glob pattern name is empty")
-	ErrPatternEmptyPlainText            = errors.New("plain text element is empty")
-	ErrPatternGlobNameInvalidCharacters = errors.New("glob pattern name contains invalid characters. Must match: ^[a-zA-Z0-9._-]+$")
+	ErrPatternUnexpectedClosingBrace       = errors.New("unexpected closing '}' before opening '{'")
+	ErrPatternMissingClosingBrace          = errors.New("missing closing '}' after opening '{'")
+	ErrPatternUnexpectedOpeningBrace       = errors.New("expected closing '}' after opening '{', but got another opening '{'")
+	ErrPatternDuplicateCaptureName         = errors.New("pattern capture name used more than once")
+	ErrPatternAdjacentCaptures             = errors.New("pattern captures must be separated by plain text")
+	ErrPatternAdjacentPlain                = errors.New("plain text elements must be separated by a capture")
+	ErrPatternEmptyCaptureName             = errors.New("pattern capture name is empty")
+	ErrPatternEmptyPlainText               = errors.New("plain text element is empty")
+	ErrPatternCaptureNameInvalidCharacters = errors.New("pattern capture name contains invalid characters. Must match: ^[a-zA-Z0-9._-]+$")
 )
 
-var patternGlobNameRegexp = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+var patternCaptureNameRegexp = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 var patternPlainEscaper = strings.NewReplacer(
 	"{", "{{",
@@ -81,7 +81,7 @@ func (p *patternParser) parse(s string) error {
 				return ErrPatternUnexpectedOpeningBrace
 			}
 			p.flushPlain()
-			p.pattern = append(p.pattern, PatternElem{Text: name, IsGlob: true})
+			p.pattern = append(p.pattern, PatternElem{Text: name, IsCapture: true})
 			i += end + 1 // +1 to skip the closing '}'
 		default:
 			p.plain.WriteByte(s[i])
@@ -100,19 +100,19 @@ func (p *patternParser) flushPlain() {
 	p.plain.Reset()
 }
 
-// Validate checks that plain text elements are non-empty, glob names are
-// valid and unique, and that plain text and globs alternate.
+// Validate checks that plain text elements are non-empty, capture names are
+// valid and unique, and that plain text and captures alternate.
 func (p Pattern) Validate() error {
 	for i, elem := range p {
-		if i > 0 && p[i-1].IsGlob == elem.IsGlob {
+		if i > 0 && p[i-1].IsCapture == elem.IsCapture {
 			// Cannot happen via ParsePattern, but can via manually constructed Pattern.
 			// Reject these as they don't survive String->ParsePattern roundtrips
-			if elem.IsGlob {
-				return ErrPatternAdjacentGlobs
+			if elem.IsCapture {
+				return ErrPatternAdjacentCaptures
 			}
 			return ErrPatternAdjacentPlain
 		}
-		if !elem.IsGlob {
+		if !elem.IsCapture {
 			if elem.Text == "" {
 				// Cannot happen via ParsePattern, but can via manually constructed Pattern.
 				// Reject these as they mess up Match logic
@@ -121,41 +121,41 @@ func (p Pattern) Validate() error {
 			continue
 		}
 		if elem.Text == "" {
-			return ErrPatternEmptyGlobName
+			return ErrPatternEmptyCaptureName
 		}
-		if !patternGlobNameRegexp.MatchString(elem.Text) {
-			return ErrPatternGlobNameInvalidCharacters
+		if !patternCaptureNameRegexp.MatchString(elem.Text) {
+			return ErrPatternCaptureNameInvalidCharacters
 		}
-		if p[:i].HasGlobName(elem.Text) {
-			return fmt.Errorf("%w: %q", ErrPatternDuplicateGlobName, elem.Text)
+		if p[:i].HasCaptureName(elem.Text) {
+			return fmt.Errorf("%w: %q", ErrPatternDuplicateCaptureName, elem.Text)
 		}
 	}
 	return nil
 }
 
-func (p Pattern) GlobCount() int {
+func (p Pattern) CaptureCount() int {
 	var count int
 	for _, elem := range p {
-		if elem.IsGlob {
+		if elem.IsCapture {
 			count++
 		}
 	}
 	return count
 }
 
-func (p Pattern) HasGlobName(name string) bool {
-	for globName := range p.GlobNames() {
-		if globName == name {
+func (p Pattern) HasCaptureName(name string) bool {
+	for captureName := range p.CaptureNames() {
+		if captureName == name {
 			return true
 		}
 	}
 	return false
 }
 
-func (p Pattern) GlobNames() iter.Seq[string] {
+func (p Pattern) CaptureNames() iter.Seq[string] {
 	return func(yield func(string) bool) {
 		for _, elem := range p {
-			if elem.IsGlob {
+			if elem.IsCapture {
 				if !yield(elem.Text) {
 					return
 				}
@@ -168,32 +168,32 @@ func (p Pattern) Format(values map[string]string) (string, error) {
 	if len(p) == 0 {
 		return "", nil
 	}
-	if len(p) == 1 && !p[0].IsGlob {
+	if len(p) == 1 && !p[0].IsCapture {
 		// zero-alloc path
 		return p[0].Text, nil
 	}
 	size := 0
 	for _, elem := range p {
-		if !elem.IsGlob {
+		if !elem.IsCapture {
 			size += len(elem.Text)
 			continue
 		}
 		val, ok := values[elem.Text]
 		if !ok {
-			// don't need to use %q, as glob names are validated during parsing
+			// don't need to use %q, as capture names are validated during parsing
 			return "", fmt.Errorf("pattern requires \"{%s}\", but no such value was provided", elem.Text)
 		}
 		size += len(val)
 	}
 	if len(p) == 1 {
-		// p[0] is known to be glob here, thanks to previous if-statement
+		// p[0] is known to be capture here, thanks to previous if-statement
 		// zero-alloc path
 		return values[p[0].Text], nil
 	}
 	var sb strings.Builder
 	sb.Grow(size)
 	for _, elem := range p {
-		if !elem.IsGlob {
+		if !elem.IsCapture {
 			sb.WriteString(elem.Text)
 		} else {
 			sb.WriteString(values[elem.Text])
@@ -203,15 +203,19 @@ func (p Pattern) Format(values map[string]string) (string, error) {
 }
 
 // Match reports whether s matches the pattern, and returns the value
-// captured by each glob.
+// captured by each capture.
 //
-// A glob captures any characters up to the first occurrence of the entire plain text that follows it,
+// A capture captures any characters up to the first occurrence of the entire plain text that follows it,
 // or to the end of the string if it is the last element.
+//
+// Match doesn't backtrack, so it isn't the inverse of [Pattern.Format]:
+// "{env}-pull" formats {env: "a-pull"} as "a-pull-pull", but doesn't match it.
+// Use [Pattern.CanFormat] to check what a pattern can produce.
 func (p Pattern) Match(s string) (map[string]string, bool) {
 	var values map[string]string
 	rest := s
 	for i, elem := range p {
-		if !elem.IsGlob {
+		if !elem.IsCapture {
 			var ok bool
 			rest, ok = strings.CutPrefix(rest, elem.Text)
 			if !ok {
@@ -231,7 +235,7 @@ func (p Pattern) Match(s string) (map[string]string, bool) {
 		}
 		val := rest[:end]
 		if values == nil {
-			values = make(map[string]string, p.GlobCount())
+			values = make(map[string]string, p.CaptureCount())
 		}
 		values[elem.Text] = val
 		rest = rest[end:]
@@ -242,19 +246,41 @@ func (p Pattern) Match(s string) (map[string]string, bool) {
 	return values, true
 }
 
+// CanFormat reports whether some values for the captures make
+// [Pattern.Format] produce s. Use it when the pattern is a template to fill in,
+// and not, like [Pattern.Match], a pattern to extract values with.
+//
+// It can give false positives, as it doesn't know which values are possible.
+//
+// Implemented by constructing a dynamic regexp program.
+// Not suitable for hot paths.
+func (p Pattern) CanFormat(s string) bool {
+	var expr strings.Builder
+	expr.WriteString("(?s)^") // (?s) makes "." match newlines too
+	for _, elem := range p {
+		if elem.IsCapture {
+			expr.WriteString(".*")
+		} else {
+			expr.WriteString(regexp.QuoteMeta(elem.Text))
+		}
+	}
+	expr.WriteString("$")
+	return regexp.MustCompile(expr.String()).MatchString(s)
+}
+
 // String implements [fmt.Stringer]
 func (p Pattern) String() string {
 	if len(p) == 0 {
 		return ""
 	}
-	if len(p) == 1 && !p[0].IsGlob && !strings.ContainsAny(p[0].Text, "{}") {
+	if len(p) == 1 && !p[0].IsCapture && !strings.ContainsAny(p[0].Text, "{}") {
 		// zero-alloc path
 		return p[0].Text
 	}
 	size := 0
 	for _, elem := range p {
 		size += len(elem.Text)
-		if elem.IsGlob {
+		if elem.IsCapture {
 			size += 2 // for the braces
 		}
 	}
@@ -267,7 +293,7 @@ func (p Pattern) String() string {
 func (p Pattern) AppendText(b []byte) ([]byte, error) {
 	buf := bytes.NewBuffer(b)
 	for _, elem := range p {
-		if !elem.IsGlob {
+		if !elem.IsCapture {
 			_, _ = patternPlainEscaper.WriteString(buf, elem.Text) // bytes.Buffer never errors
 		} else {
 			buf.WriteByte('{')
@@ -304,13 +330,13 @@ func (p Pattern) Type() string {
 }
 
 type PatternElem struct {
-	Text   string
-	IsGlob bool
+	Text      string
+	IsCapture bool
 }
 
 // String implements [fmt.GoStringer]
 func (elem PatternElem) GoString() string {
-	if elem.IsGlob {
+	if elem.IsCapture {
 		return fmt.Sprintf("{%s}", elem.Text)
 	}
 	return strconv.Quote(elem.Text)

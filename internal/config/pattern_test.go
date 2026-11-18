@@ -23,7 +23,7 @@ func TestParsePattern(t *testing.T) {
 			want:  Pattern{{"foo/bar:moo/doo", false}},
 		},
 		{
-			name:  "only glob",
+			name:  "only capture",
 			input: "{foo}",
 			want:  Pattern{{"foo", true}},
 		},
@@ -33,12 +33,12 @@ func TestParsePattern(t *testing.T) {
 			want:  Pattern{{"{foo} {", false}, {"bar", true}, {"}", false}},
 		},
 		{
-			name:  "trim glob name",
+			name:  "trim capture name",
 			input: "{ \t foo \n }",
 			want:  Pattern{{"foo", true}},
 		},
 		{
-			name:  "mix plain and glob",
+			name:  "mix plain and capture",
 			input: "hello-{world}!",
 			want:  Pattern{{"hello-", false}, {"world", true}, {"!", false}},
 		},
@@ -79,29 +79,29 @@ func TestParsePattern_Error(t *testing.T) {
 			want:  ErrPatternMissingClosingBrace,
 		},
 		{
-			name:  "duplicate glob name",
+			name:  "duplicate capture name",
 			input: "{foo}-{foo}",
-			want:  ErrPatternDuplicateGlobName,
+			want:  ErrPatternDuplicateCaptureName,
 		},
 		{
-			name:  "adjacent globs",
+			name:  "adjacent captures",
 			input: "{foo}{bar}",
-			want:  ErrPatternAdjacentGlobs,
+			want:  ErrPatternAdjacentCaptures,
 		},
 		{
-			name:  "empty glob name",
+			name:  "empty capture name",
 			input: "foo{}bar",
-			want:  ErrPatternEmptyGlobName,
+			want:  ErrPatternEmptyCaptureName,
 		},
 		{
-			name:  "blank glob name",
+			name:  "blank capture name",
 			input: "{ }",
-			want:  ErrPatternEmptyGlobName,
+			want:  ErrPatternEmptyCaptureName,
 		},
 		{
 			name:  "invalid pattern name",
 			input: "foo{bar!}",
-			want:  ErrPatternGlobNameInvalidCharacters,
+			want:  ErrPatternCaptureNameInvalidCharacters,
 		},
 	}
 
@@ -144,13 +144,13 @@ func TestPatternFormat(t *testing.T) {
 			want:    "foo/bar:moo/doo",
 		},
 		{
-			name:    "only glob",
+			name:    "only capture",
 			pattern: Pattern{{"foo", true}},
 			values:  map[string]string{"foo": "bar"},
 			want:    "bar",
 		},
 		{
-			name:    "mix plain and glob",
+			name:    "mix plain and capture",
 			pattern: Pattern{{"hello-", false}, {"world", true}, {"!", false}},
 			values: map[string]string{
 				"world": "doo",
@@ -204,7 +204,7 @@ func TestPatternMatch(t *testing.T) {
 			value:   "foo/bar:moo/doo:hello",
 		},
 		{
-			name:    "only glob matches",
+			name:    "only capture matches",
 			pattern: Pattern{{"foo", true}},
 			value:   "bar",
 			want:    map[string]string{"foo": "bar"},
@@ -218,7 +218,7 @@ func TestPatternMatch(t *testing.T) {
 			wantOK:  true,
 		},
 		{
-			name:    "only glob matches delimiters",
+			name:    "only capture matches delimiters",
 			pattern: Pattern{{"foo", true}},
 			value:   "bar/moo:doo",
 			want:    map[string]string{"foo": "bar/moo:doo"},
@@ -232,14 +232,14 @@ func TestPatternMatch(t *testing.T) {
 			wantOK:  true,
 		},
 		{
-			name:    "glob stops at first following char",
+			name:    "capture stops at first following char",
 			pattern: Pattern{{"a", true}, {"-", false}, {"b", true}},
 			value:   "x-y-z",
 			want:    map[string]string{"a": "x", "b": "y-z"},
 			wantOK:  true,
 		},
 		{
-			name:    "glob stops at entire following text",
+			name:    "capture stops at entire following text",
 			pattern: Pattern{{"a", true}, {"-x", false}, {"b", true}},
 			value:   "foo-y-xbar",
 			want:    map[string]string{"a": "foo-y", "b": "bar"},
@@ -274,6 +274,47 @@ func TestPatternMatch(t *testing.T) {
 	}
 }
 
+func TestPatternCanFormat(t *testing.T) {
+	tests := []struct {
+		pattern string
+		s       string
+		want    bool
+	}{
+		{"dev-push", "dev-push", true},
+		{"dev-push", "dev-pull", false},
+		{"{env}-push", "dev-push", true},
+		{"{env}-push", "-push", true},
+		{"{env}-pull", "a-pull-pull", true},
+		{"a.{x}", "abc", false},
+		{"{a}-{b}", "x-y-z", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.pattern+" "+tc.s, func(t *testing.T) {
+			p, err := ParsePattern(tc.pattern)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := p.CanFormat(tc.s); got != tc.want {
+				t.Errorf("want %t, got %t", tc.want, got)
+			}
+		})
+	}
+}
+
+func TestPatternCanFormat_falsePositive(t *testing.T) {
+	pattern := mustPattern(t, "{env}-pull")
+
+	// known false-positive, acceptable for our use-case:
+	// as an identity, "a-pull" can never be captured, as Match splits at the first "-pull",
+	// but CanFormat doesn't know which values are possible
+	if !pattern.CanFormat("a-pull-pull") {
+		t.Error("expected false-positive: CanFormat should accept a-pull-pull")
+	}
+	if _, ok := pattern.Match("a-pull-pull"); ok {
+		t.Error("want Match to not match a-pull-pull")
+	}
+}
+
 func TestPatternString(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -283,14 +324,14 @@ func TestPatternString(t *testing.T) {
 		{name: "nil", pattern: nil, want: ""},
 		{name: "empty", pattern: Pattern{}, want: ""},
 		{name: "only plain", pattern: Pattern{{"foo/bar:moo/doo", false}}, want: "foo/bar:moo/doo"},
-		{name: "only glob", pattern: Pattern{{"foo", true}}, want: "{foo}"},
+		{name: "only capture", pattern: Pattern{{"foo", true}}, want: "{foo}"},
 		{
-			name:    "mix plain and glob",
+			name:    "mix plain and capture",
 			pattern: Pattern{{"hello-", false}, {"world", true}, {"!", false}},
 			want:    "hello-{world}!",
 		},
 		{
-			name:    "multiple globs",
+			name:    "multiple captures",
 			pattern: Pattern{{"a", true}, {"-", false}, {"b", true}},
 			want:    "{a}-{b}",
 		},

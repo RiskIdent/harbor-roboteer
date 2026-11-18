@@ -1,126 +1,194 @@
 package config
 
 import (
-	"context"
-	"fmt"
-	"log/slog"
-	"strings"
-	"sync"
+	"errors"
 
-	"github.com/go-viper/mapstructure/v2"
-	"github.com/knadh/koanf/parsers/yaml"
-	"github.com/knadh/koanf/providers/file"
-	"github.com/knadh/koanf/v2"
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
 type Config struct {
 	KnownClaims []string `yaml:"known_claims"`
+
+	Identities []Identity `yaml:"identities"`
+
+	Projects Projects `yaml:"projects"`
+
+	AllProjects AllProjects `yaml:"all_projects"`
+
+	System System `yaml:"system"`
 }
 
-type Watcher struct {
-	path       string
-	file       *file.File
-	log        *slog.Logger
-	cfg        *Config
-	mutex      sync.RWMutex
-	isWatching bool
+// Validate checks the config for semantic errors.
+func (c *Config) Validate() error {
+	vc := newValidationContext(c)
+
+	err := validation.Errors{
+		"known_claims": validation.Validate(c.KnownClaims,
+			validation.Each(validation.Required, noPlaceholders()),
+			uniqueItems(func(claim string) string { return claim }),
+			vc.usedClaimsOnly()),
+		"identities":   vc.validateIdentities(c.Identities),
+		"projects":     c.Projects.Validate(vc),
+		"all_projects": c.AllProjects.Validate(vc),
+		"system":       c.System.Validate(vc),
+	}.Filter()
+	return errors.Join(flattenErrors("", err)...)
 }
 
-func (w *Watcher) Config() *Config {
-	w.mutex.RLock()
-	defer w.mutex.RUnlock()
-	return w.cfg
-}
+type Identity map[string]Pattern
 
-func (w *Watcher) IsWatching() bool {
-	return w.isWatching
-}
-
-// Watch starts watching the config file for changes, and calls the callback
-// every time it's changed and successfully parsed.
-//
-// Will stop watching when the context is cancelled,
-// and/or when the [Watcher.Close] is called.
-func (w *Watcher) Watch(ctx context.Context) error {
-	go func() {
-		<-ctx.Done()
-		_ = w.Close()
-	}()
-	w.isWatching = true
-	return w.file.Watch(func(event any, err error) {
-		// "event" is always nil for the file provider
-		if err != nil {
-			w.log.ErrorContext(ctx, "Error watching config file", slog.String("path", w.path), slog.Any("error", err))
-			w.isWatching = false // koanf stops the watch loop here
-			return
+// AvailableNames returns the claim names and capture names of the identity.
+func (id Identity) AvailableNames() map[string]bool {
+	names := map[string]bool{}
+	for claim, pattern := range id {
+		names[claim] = true
+		for name := range pattern.CaptureNames() {
+			names[name] = true
 		}
-		cfg, err := parseConfig(w.path, w.file)
-		if err != nil {
-			w.log.ErrorContext(ctx, "Error loading latest config file", slog.String("path", w.path), slog.Any("error", err))
-			return
-		}
-
-		w.mutex.Lock()
-		defer w.mutex.Unlock()
-		w.cfg = cfg
-		w.log.InfoContext(ctx, "Config reloaded", slog.String("path", w.path))
-	})
+	}
+	return names
 }
 
-// Close stops the watcher from watching the file.
-func (w *Watcher) Close() error {
-	w.isWatching = false
-	return w.file.Unwatch() // [file.File.Unwatch] uses mutexes, so we don't need to
+type Projects struct {
+	// Map of roboteer project roles. These can be referenced in the grants to deduplicate your config.
+	Roles map[string]ProjectPermissions `yaml:"roles"`
+	// Map of permission grants. The map key is the grant "ID" (shown in audit logs).
+	// All matching grants add up; nothing denies.
+	Grants map[string]ProjectGrant `yaml:"grants"`
 }
 
-// Load reads the config file, parses it, and returns a watcher to watch for file changes.
-//
-// Returns an error if the initial load and parse failed.
-func Load(ctx context.Context, log *slog.Logger, path string) (*Watcher, error) {
-	f := file.Provider(path)
-	cfg, err := parseConfig(path, f)
+func (p Projects) Validate(vc validationContext) error {
+	return validation.Errors{
+		"roles":  validateRoleDefs(p.Roles, vc.projectRoleRefs()),
+		"grants": vc.validateGrants(p.Grants),
+	}.Filter()
+}
+
+type ProjectPermissions map[string][]string
+
+type ProjectGrant struct {
+	When        When               `yaml:"when,omitempty"`
+	Projects    []Pattern          `yaml:"projects"`
+	Roles       []Pattern          `yaml:"roles"`
+	Permissions ProjectPermissions `yaml:"permissions"`
+}
+
+// PlaceholderNames returns the placeholder names used in any pattern of the grant.
+func (g ProjectGrant) PlaceholderNames() map[string]bool {
+	return placeholderNamesIn(g.Projects, g.Roles)
+}
+
+func (g ProjectGrant) Validate(vc validationContext) error {
+	err := validation.Errors{
+		"when":        validation.Validate(g.When, vc.whenRules()...),
+		"projects":    validation.Validate(g.Projects, validation.Required, validation.Each(validation.Required), vc.placeholdersFromIdentities()),
+		"roles":       vc.validateRoles(g.Roles, vc.cfg.Projects.Roles),
+		"permissions": validation.Validate(g.Permissions, permissionRules[ProjectPermissions]()...),
+	}.Filter()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	log.InfoContext(ctx, "Config loaded", slog.String("path", path))
-
-	return &Watcher{
-		path: path,
-		file: f,
-		log:  log,
-		cfg:  cfg,
-	}, nil
+	if err := requireRolesOrPermissions(g.Roles, g.Permissions); err != nil {
+		return err
+	}
+	return vc.placeholdersFromOneIdentity(g.When, g.PlaceholderNames())
 }
 
-func parseConfig(path string, f *file.File) (*Config, error) {
-	k := koanf.New(".")
-	if err := k.Load(f, yaml.Parser()); err != nil {
-		// don't need to include "path" in error, as [os.ReadFile] already does that
-		return nil, fmt.Errorf("load config file: %w", err)
-	}
+type AllProjects struct {
+	// Grants on all projects, including ones created later ("Cover all projects" in Harbor).
+	// Uses the project roles.
+	// All matching grants add up; nothing denies.
+	Grants map[string]AllProjectGrant `yaml:"grants"`
+}
 
-	// drop all "x-*" configs, to allow docker-compose style extensions
-	// https://docs.docker.com/reference/compose-file/extension/
-	for key := range k.Raw() {
-		if strings.HasPrefix(key, "x-") {
-			k.Delete(key)
+func (a AllProjects) Validate(vc validationContext) error {
+	return validation.Errors{
+		"grants": vc.validateGrants(a.Grants),
+	}.Filter()
+}
+
+type AllProjectGrant struct {
+	When        When               `yaml:"when,omitempty"`
+	Roles       []Pattern          `yaml:"roles"`
+	Permissions ProjectPermissions `yaml:"permissions"`
+}
+
+// PlaceholderNames returns the placeholder names used in any pattern of the grant.
+func (g AllProjectGrant) PlaceholderNames() map[string]bool {
+	return placeholderNamesIn(g.Roles)
+}
+
+func (g AllProjectGrant) Validate(vc validationContext) error {
+	err := validation.Errors{
+		"when":        validation.Validate(g.When, vc.whenRules()...),
+		"roles":       vc.validateRoles(g.Roles, vc.cfg.Projects.Roles),
+		"permissions": validation.Validate(g.Permissions, permissionRules[ProjectPermissions]()...),
+	}.Filter()
+	if err != nil {
+		return err
+	}
+	if err := requireRolesOrPermissions(g.Roles, g.Permissions); err != nil {
+		return err
+	}
+	return vc.placeholdersFromOneIdentity(g.When, g.PlaceholderNames())
+}
+
+type System struct {
+	// Map of roboteer system-scope roles. These can be referenced in the grants to deduplicate your config.
+	Roles map[string]SystemPermissions `yaml:"roles"`
+	// Map of permission grants. The map key is the grant "ID" (shown in audit logs).
+	// All matching grants add up; nothing denies.
+	Grants map[string]SystemGrant `yaml:"grants"`
+}
+
+func (s System) Validate(vc validationContext) error {
+	return validation.Errors{
+		"roles":  validateRoleDefs(s.Roles, vc.systemRoleRefs()),
+		"grants": vc.validateGrants(s.Grants),
+	}.Filter()
+}
+
+type SystemPermissions map[string][]string
+
+type SystemGrant struct {
+	When        When              `yaml:"when,omitempty"`
+	Roles       []Pattern         `yaml:"roles"`
+	Permissions SystemPermissions `yaml:"permissions"`
+}
+
+// PlaceholderNames returns the placeholder names used in any pattern of the grant.
+func (g SystemGrant) PlaceholderNames() map[string]bool {
+	return placeholderNamesIn(g.Roles)
+}
+
+func (g SystemGrant) Validate(vc validationContext) error {
+	err := validation.Errors{
+		"when":        validation.Validate(g.When, vc.whenRules()...),
+		"roles":       vc.validateRoles(g.Roles, vc.cfg.System.Roles),
+		"permissions": validation.Validate(g.Permissions, permissionRules[SystemPermissions]()...),
+	}.Filter()
+	if err != nil {
+		return err
+	}
+	if err := requireRolesOrPermissions(g.Roles, g.Permissions); err != nil {
+		return err
+	}
+	return vc.placeholdersFromOneIdentity(g.When, g.PlaceholderNames())
+}
+
+type When map[string]string
+
+// MatchesIdentity reports whether the identity has every claim in the [When],
+// with patterns matching the values.
+func (w When) MatchesIdentity(id Identity) bool {
+	for claim, value := range w {
+		pattern, ok := id[claim]
+		if !ok {
+			return false
+		}
+		if _, ok := pattern.Match(value); !ok {
+			return false
 		}
 	}
-
-	var cfg Config
-	if err := k.UnmarshalWithConf("", &cfg, koanf.UnmarshalConf{
-		Tag: `yaml`,
-		DecoderConfig: &mapstructure.DecoderConfig{
-			DecodeHook: mapstructure.ComposeDecodeHookFunc(
-				mapstructure.StringToTimeDurationHookFunc(),
-				mapstructure.TextUnmarshallerHookFunc(),
-			),
-			ErrorUnused:     true,
-			SquashTagOption: `inline`,
-		},
-	}); err != nil {
-		return nil, fmt.Errorf("parse config file %s: %w", path, err)
-	}
-
-	return &cfg, nil
+	return true
 }
