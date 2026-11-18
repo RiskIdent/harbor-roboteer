@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -126,6 +127,7 @@ func TestNewRobotCreateRequest(t *testing.T) {
 // fakeHarbor serves Harbor's API, passing each requested robot name to respond, which writes the response.
 func fakeHarbor(t *testing.T, respond func(w http.ResponseWriter, name string)) *Client {
 	t.Helper()
+	os.Clearenv() // Prevent proxy settings from redirecting local test traffic.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Name string `json:"name"`

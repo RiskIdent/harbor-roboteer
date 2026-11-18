@@ -7,12 +7,14 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
 )
 
 func TestStartWaitsForInFlightRequests(t *testing.T) {
+	os.Clearenv() // Prevent proxy settings from redirecting local test traffic.
 	s, err := NewServer(t.Context(), ":0", slog.New(slog.DiscardHandler), nil, nil)
 	if err != nil {
 		t.Fatal(err)

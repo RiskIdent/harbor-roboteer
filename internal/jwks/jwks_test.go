@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 // An empty reportedIssuer makes the configuration report the server's own URL.
 func fakeProvider(t *testing.T, reportedIssuer string, keys http.Handler) string {
 	t.Helper()
+	os.Clearenv() // Prevent proxy settings from redirecting local test traffic.
 	var srv *httptest.Server
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -81,6 +83,7 @@ func TestNewFailsOnIssuerMismatch(t *testing.T) {
 }
 
 func TestNewFailsWhenNoDiscovery(t *testing.T) {
+	os.Clearenv() // Prevent proxy settings from redirecting local test traffic.
 	srv := httptest.NewServer(http.NotFoundHandler())
 	defer srv.Close()
 	if _, err := New(t.Context(), srv.URL); err == nil {
