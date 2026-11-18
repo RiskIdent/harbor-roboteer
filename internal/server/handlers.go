@@ -27,14 +27,14 @@ const maxBodyBytes = 64 << 10
 // token, so that callers can't use it to find out which robot IDs exist
 const errInvalidDeleteCombo = "invalid robot ID and delete token combination"
 
-type postTokenRequest struct {
+type postRobotRequest struct {
 	Name string `json:"name"`
 	// project comes from the caller until the permission config (#38) lands
 	// TODO: remove once project permissions are resolved from the token's claims
 	Project string `json:"project"`
 }
 
-func (r postTokenRequest) Validate() error {
+func (r postRobotRequest) Validate() error {
 	return validation.ValidateStruct(&r,
 		validation.Field(&r.Project, validation.Required),
 	)
@@ -46,25 +46,30 @@ type robotCredentials struct {
 	Password string `json:"password"`
 }
 
-type postTokenResponse struct {
+type postRobotResponse struct {
 	Robot       robotCredentials `json:"robot"`
 	DeleteToken string           `json:"deleteToken"`
 }
 
 var unmonitoredPaths = []string{
-	"/health",
+	"/api/v1/health",
 }
 
 func (s *Server) registerHandlers() {
-	router := s.router
-
-	router.HandleFunc("POST /token", s.postToken)
-	router.HandleFunc("DELETE /token", s.deleteToken)
-
-	router.HandleFunc("GET /health", s.health)
+	s.registerV1()
 }
 
-func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
+func (s *Server) registerV1() {
+	r := s.router
+
+	const prefix = "/api/v1"
+	r.HandleFunc("POST "+prefix+"/robot", s.postRobot)
+	r.HandleFunc("DELETE "+prefix+"/robot", s.deleteRobot)
+
+	r.HandleFunc("GET "+prefix+"/health", s.health)
+}
+
+func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	tok, err := jwt.ParseRequest(r, s.jwtOpts...)
 	if err != nil {
@@ -84,7 +89,7 @@ func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "body must be valid JSON", http.StatusBadRequest)
 		return
 	}
-	var req postTokenRequest
+	var req postRobotRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		http.Error(w, "body must be valid JSON", http.StatusBadRequest)
 		return
@@ -123,7 +128,7 @@ func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(postTokenResponse{
+	_ = json.NewEncoder(w).Encode(postRobotResponse{
 		Robot: robotCredentials{
 			ID:       created.ID,
 			Username: created.Name,
@@ -133,7 +138,7 @@ func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
+func (s *Server) deleteRobot(w http.ResponseWriter, r *http.Request) {
 	token, ok := bearerToken(r)
 	if !ok {
 		w.Header().Set("WWW-Authenticate", "Bearer")

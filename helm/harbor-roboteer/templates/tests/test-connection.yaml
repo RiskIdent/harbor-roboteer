@@ -11,5 +11,5 @@ spec:
     - name: wget
       image: busybox
       command: ['wget']
-      args: ['{{ include "harbor-roboteer.fullname" . }}:{{ .Values.service.port }}/health']
+      args: ['{{ include "harbor-roboteer.fullname" . }}:{{ .Values.service.port }}/api/v1/health']
   restartPolicy: Never
