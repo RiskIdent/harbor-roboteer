@@ -21,10 +21,7 @@ import (
 	"github.com/lestrrat-go/jwx/v4/jwt"
 )
 
-const (
-	deleteTokenKey    = "Delete-Token"
-	deleteTokenPrefix = "sha256:"
-)
+const deleteTokenPrefix = "sha256:"
 
 // maxBodyBytes is the largest request body that POST /token accepts
 const maxBodyBytes = 64 << 10

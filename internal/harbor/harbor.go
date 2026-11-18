@@ -26,10 +26,8 @@ var (
 )
 
 const (
-	createAttempts    = 5
-	maxNameLen        = 128
-	earlyExpiryKey    = "Early-Expiry"
-	earlyExpiryFormat = time.RFC3339
+	createAttempts = 5
+	maxNameLen     = 128
 )
 
 var invalidNameChars = regexp.MustCompile(`[^a-z0-9]+`)
@@ -98,7 +96,7 @@ func (c *Client) CreateRobot(ctx context.Context, robot RobotCreate) (Robot, err
 func newRobotCreateRequest(robot RobotCreate, now time.Time, suffix string) *models.RobotCreate {
 	return &models.RobotCreate{
 		Name:        normalizeRobotName(robot.NameBase, suffix),
-		Description: robot.RobotMetadata.String(),
+		Description: robot.RobotMetadata.String(), //nolint:staticcheck // want to be explicit that we take the String from the embedded metadata only
 		Duration:    daysUntil(now, robot.EarlyExpiry),
 		Level:       "project",
 		Permissions: []*models.RobotPermission{{
