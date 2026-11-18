@@ -69,7 +69,7 @@ func TestSlowRequestHeadersAreCutOff(t *testing.T) {
 	defer func() { _ = conn.Close() }()
 
 	// The headers are never finished, as there's no blank line at the end
-	if _, err := conn.Write([]byte("GET /health HTTP/1.1\r\nHost: localhost\r\n")); err != nil {
+	if _, err := conn.Write([]byte("GET /api/v1/health HTTP/1.1\r\nHost: localhost\r\n")); err != nil {
 		t.Fatal(err)
 	}
 	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
