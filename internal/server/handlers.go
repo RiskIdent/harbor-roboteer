@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/RiskIdent/harbor-roboteer/internal/config"
 	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/lestrrat-go/jwx/v4/jwt"
@@ -127,17 +128,17 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to evaluate permissions from config", http.StatusInternalServerError)
 		return
 	}
-	_ = perms // TODO: use this in RobotCreate model
-
 	deleteToken := rand.Text()
 	hash := sha256.Sum256([]byte(deleteToken))
 	created, err := s.harbor.CreateRobot(ctx, harbor.RobotCreate{
-		NameBase: name,
-		// Project:     req.Project, // TODO: implement this
-		EarlyExpiry: time.Now().Add(time.Hour), // TODO: probably want to template this
-		Description: fmt.Sprintf("Robot account for OIDC user %q", cmp.Or(sub, "(unknown JWT sub)")),
-		DeleteToken: deleteTokenPrefix + hex.EncodeToString(hash[:]),
-		ManagedBy:   "harbor-roboteer " + s.version,
+		NameBase:              name,
+		ProjectPermissions:    harborProjectPermissions(perms.ProjectPermissions),
+		AllProjectPermissions: harbor.Permissions(perms.AllProjectPermissions),
+		SystemPermissions:     harbor.Permissions(perms.SystemPermissions),
+		EarlyExpiry:           time.Now().Add(time.Hour), // TODO: probably want to template this
+		Description:           fmt.Sprintf("Robot account for OIDC user %q", cmp.Or(sub, "(unknown JWT sub)")),
+		DeleteToken:           deleteTokenPrefix + hex.EncodeToString(hash[:]),
+		ManagedBy:             "harbor-roboteer " + s.version,
 	})
 	s.countRobotOp("create", err)
 	if errors.Is(err, harbor.ErrRobotExists) {
@@ -159,6 +160,17 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 		},
 		DeleteToken: deleteToken,
 	})
+}
+
+func harborProjectPermissions(permissions map[string]config.ProjectPermissions) map[string]harbor.Permissions {
+	if permissions == nil {
+		return nil
+	}
+	result := make(map[string]harbor.Permissions, len(permissions))
+	for project, projectPermissions := range permissions {
+		result[project] = harbor.Permissions(projectPermissions)
+	}
+	return result
 }
 
 func (s *Server) deleteRobot(w http.ResponseWriter, r *http.Request) {
