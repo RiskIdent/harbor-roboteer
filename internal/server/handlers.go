@@ -120,8 +120,8 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	/* TODO: remove test log */ s.log.DebugContext(ctx, "config", slog.Any("knownClaims", cfg.KnownClaims))
 
 	created, err := s.harbor.CreateRobot(r.Context(), harbor.RobotCreate{
-		NameBase:    name,
-		Project:     req.Project,
+		NameBase: name,
+		// Project:     req.Project, // TODO: implement this
 		EarlyExpiry: time.Now().Add(time.Hour), // TODO: probably want to template this
 		Description: fmt.Sprintf("Robot account for OIDC user %q", cmp.Or(sub, "(unknown JWT sub)")),
 		DeleteToken: deleteTokenPrefix + hex.EncodeToString(hash[:]),

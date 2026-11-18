@@ -2,12 +2,81 @@ package harbor
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/go-openapi/strfmt"
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/models"
 )
+
+func TestPermissionsHarborAccess(t *testing.T) {
+	got := (Permissions{
+		"repository": {"pull", "push"},
+		"artifact":   {"delete"},
+	}).HarborAccess()
+
+	access := make([]string, 0, len(got))
+	for _, item := range got {
+		access = append(access, item.Resource+":"+item.Action)
+	}
+	slices.Sort(access)
+	want := []string{"artifact:delete", "repository:pull", "repository:push"}
+	if !slices.Equal(access, want) {
+		t.Errorf("wrong access\nwant: %v\ngot:  %v", want, access)
+	}
+}
+
+func TestRobotPermissions(t *testing.T) {
+	got := (RobotCreate{
+		SystemPermissions: Permissions{"project": {"create"}},
+		ProjectPermissions: map[string]Permissions{
+			"zeta":  {"repository": {"push"}},
+			"alpha": {"repository": {"pull"}},
+		},
+	}).RobotPermissions()
+
+	if len(got) != 3 {
+		t.Fatalf("permissions = %d, want 3: %#v", len(got), got)
+	}
+	want := []struct {
+		kind      string
+		namespace string
+		resource  string
+		action    string
+	}{
+		{kind: "system", resource: "project", action: "create"},
+		{kind: "project", namespace: "alpha", resource: "repository", action: "pull"},
+		{kind: "project", namespace: "zeta", resource: "repository", action: "push"},
+	}
+	for i, permission := range got {
+		if permission.Kind != want[i].kind {
+			t.Errorf("permission %d kind = %q, want %q", i, permission.Kind, want[i].kind)
+		}
+		if permission.Namespace != want[i].namespace {
+			t.Errorf("permission %d namespace = %q, want %q", i, permission.Namespace, want[i].namespace)
+		}
+		if len(permission.Access) != 1 {
+			t.Errorf("permission %d access = %d, want 1", i, len(permission.Access))
+			continue
+		}
+		if permission.Access[0].Resource != want[i].resource || permission.Access[0].Action != want[i].action {
+			t.Errorf("permission %d access = %s:%s, want %s:%s",
+				i,
+				permission.Access[0].Resource,
+				permission.Access[0].Action,
+				want[i].resource,
+				want[i].action,
+			)
+		}
+	}
+}
+
+func TestRobotPermissionsEmpty(t *testing.T) {
+	if got := (RobotCreate{}).RobotPermissions(); len(got) != 0 {
+		t.Errorf("permissions = %#v, want none", got)
+	}
+}
 
 func TestRobotMetadataString(t *testing.T) {
 	tests := []struct {
