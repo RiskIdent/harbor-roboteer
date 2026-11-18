@@ -84,16 +84,32 @@ func normalizeRobotName(base, suffix string) string {
 
 // CreateRobot creates a project-level robot account with pull and push access to project.
 func (c *Client) CreateRobot(ctx context.Context, robot RobotCreate) (Robot, error) {
-	duration := daysUntil(time.Now(), robot.EarlyExpiry)
-	desc := robot.RobotMetadata.String()
+	now := time.Now()
 	for range createAttempts {
-		name := normalizeRobotName(robot.NameBase, strings.ToLower(rand.Text()[:8]))
-		created, err := c.createRobot(ctx, name, robot.Project, desc, duration)
+		request := newRobotCreateRequest(robot, now, strings.ToLower(rand.Text()[:8]))
+		created, err := c.createRobot(ctx, request)
 		if !errors.Is(err, ErrRobotExists) {
 			return created, err
 		}
 	}
 	return Robot{}, ErrRobotExists
+}
+
+func newRobotCreateRequest(robot RobotCreate, now time.Time, suffix string) *models.RobotCreate {
+	return &models.RobotCreate{
+		Name:        normalizeRobotName(robot.NameBase, suffix),
+		Description: robot.RobotMetadata.String(),
+		Duration:    daysUntil(now, robot.EarlyExpiry),
+		Level:       "project",
+		Permissions: []*models.RobotPermission{{
+			Kind:      "project",
+			Namespace: robot.Project,
+			Access: []*models.Access{
+				{Resource: "repository", Action: "pull"},
+				{Resource: "repository", Action: "push"},
+			},
+		}},
+	}
 }
 
 func daysUntil(now, date time.Time) int64 {
@@ -106,21 +122,8 @@ func daysUntil(now, date time.Time) int64 {
 	return max(1, duration) // Harbor robot duration must be at least 1
 }
 
-func (c *Client) createRobot(ctx context.Context, name, project, description string, duration int64) (Robot, error) {
-	resp, err := c.api.Robot.CreateRobot(ctx, robot.NewCreateRobotParams().WithRobot(&models.RobotCreate{
-		Name:        name,
-		Description: description,
-		Duration:    duration,
-		Level:       "project",
-		Permissions: []*models.RobotPermission{{
-			Kind:      "project",
-			Namespace: project,
-			Access: []*models.Access{
-				{Resource: "repository", Action: "pull"},
-				{Resource: "repository", Action: "push"},
-			},
-		}},
-	}))
+func (c *Client) createRobot(ctx context.Context, request *models.RobotCreate) (Robot, error) {
+	resp, err := c.api.Robot.CreateRobot(ctx, robot.NewCreateRobotParams().WithRobot(request))
 	if err != nil {
 		var apiErr *runtime.APIError
 		if errors.As(err, &apiErr) && apiErr.Code == http.StatusConflict {
@@ -133,8 +136,8 @@ func (c *Client) createRobot(ctx context.Context, name, project, description str
 		Name:         resp.Payload.Name,
 		Secret:       resp.Payload.Secret,
 		CreationTime: resp.Payload.CreationTime,
-		Description:  description,
-		Duration:     &duration,
+		Description:  request.Description,
+		Duration:     &request.Duration,
 		Editable:     true,
 		Level:        "project",
 	}), nil

@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 // harborNameRe is Harbor's own robot name check (https://github.com/goharbor/harbor/blob/8499cade41eafb3cd1de49fac2bc2c240ba758c7/src/server/v2.0/handler/robot.go#L492).
@@ -61,6 +62,45 @@ func FuzzNormalizeRobotName(f *testing.F) {
 			t.Fatalf("normalizeRobotName(%q) = %q, want it to end in the suffix", base, got)
 		}
 	})
+}
+
+func TestNewRobotCreateRequest(t *testing.T) {
+	now := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name        string
+		metadata    RobotMetadata
+		duration    int64
+		description string
+	}{
+		{name: "zero expiry", duration: 1, description: "{}\n"},
+		{
+			name: "rounded expiry",
+			metadata: RobotMetadata{
+				Description: "hello",
+				EarlyExpiry: now.Add(25 * time.Hour),
+				DeleteToken: "sha256:token",
+				ManagedBy:   "roboteer",
+			},
+			duration:    2,
+			description: "desc: hello\nearlyExpiry: 2026-11-19T13:00:00Z\ndeleteToken: sha256:token\nmanagedBy: roboteer\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := newRobotCreateRequest(RobotCreate{
+				NameBase: "repo:acme/foo", Project: "acme", RobotMetadata: test.metadata,
+			}, now, "abcd1234")
+			if got.Name != "repo-acme-foo-abcd1234" {
+				t.Errorf("name = %q, want %q", got.Name, "repo-acme-foo-abcd1234")
+			}
+			if got.Description != test.description {
+				t.Errorf("description = %q, want %q", got.Description, test.description)
+			}
+			if got.Duration != test.duration {
+				t.Errorf("duration = %d, want %d", got.Duration, test.duration)
+			}
+		})
+	}
 }
 
 // fakeHarbor serves Harbor's API, passing each requested robot name to respond, which writes the response.
