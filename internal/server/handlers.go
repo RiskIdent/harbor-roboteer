@@ -1,24 +1,27 @@
 package server
 
 import (
+	"cmp"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/lestrrat-go/jwx/v4/jwt"
 )
 
-const deleteTokenPrefix = "roboteer-delete-token-sha256:"
+const deleteTokenPrefix = "sha256:"
 
 // maxBodyBytes is the largest request body that POST /token accepts
 const maxBodyBytes = 64 << 10
@@ -99,9 +102,10 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sub, _ := tok.Subject()
 	name := req.Name
 	if name == "" {
-		name, _ = tok.Subject()
+		name = sub
 	}
 	if name == "" {
 		s.log.ErrorContext(r.Context(), "token has no sub claim and no name was provided in the request body")
@@ -115,7 +119,14 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	cfg := s.configWatcher.Config() // TODO: use config in roles mapping
 	/* TODO: remove test log */ s.log.DebugContext(ctx, "config", slog.Any("knownClaims", cfg.KnownClaims))
 
-	created, err := s.harbor.CreateRobot(r.Context(), name, req.Project, deleteTokenPrefix+hex.EncodeToString(hash[:]))
+	created, err := s.harbor.CreateRobot(r.Context(), harbor.RobotCreate{
+		NameBase:    name,
+		Project:     req.Project,
+		EarlyExpiry: time.Now().Add(time.Hour), // TODO: probably want to template this
+		Description: fmt.Sprintf("Robot account for OIDC user %q", cmp.Or(sub, "(unknown JWT sub)")),
+		DeleteToken: deleteTokenPrefix + hex.EncodeToString(hash[:]),
+		ManagedBy:   "harbor-roboteer " + s.version,
+	})
 	s.countRobotOp("create", err)
 	if errors.Is(err, harbor.ErrRobotExists) {
 		http.Error(w, err.Error(), http.StatusConflict)
@@ -165,7 +176,7 @@ func (s *Server) deleteRobot(w http.ResponseWriter, r *http.Request) {
 
 	hash := sha256.Sum256([]byte(token))
 	want := deleteTokenPrefix + hex.EncodeToString(hash[:])
-	if subtle.ConstantTimeCompare([]byte(rb.Description), []byte(want)) != 1 {
+	if subtle.ConstantTimeCompare([]byte(rb.DeleteToken), []byte(want)) != 1 {
 		http.Error(w, errInvalidDeleteCombo, http.StatusForbidden)
 		return
 	}

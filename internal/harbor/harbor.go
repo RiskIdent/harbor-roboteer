@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/go-openapi/runtime"
 	httptransport "github.com/go-openapi/runtime/client"
@@ -58,16 +59,15 @@ func New(harborURL *url.URL, username, password string) (*Client, error) {
 }
 
 // GetRobotByID returns the robot account with the given ID, or ErrRobotNotFound.
-func (c *Client) GetRobotByID(ctx context.Context, id int64) (*models.Robot, error) {
+func (c *Client) GetRobotByID(ctx context.Context, id int64) (Robot, error) {
 	resp, err := c.api.Robot.GetRobotByID(ctx, robot.NewGetRobotByIDParams().WithRobotID(id))
 	if err != nil {
-		var notFound *robot.GetRobotByIDNotFound
-		if errors.As(err, &notFound) {
-			return nil, ErrRobotNotFound
+		if _, ok := errors.AsType[*robot.GetRobotByIDNotFound](err); ok {
+			return Robot{}, ErrRobotNotFound
 		}
-		return nil, fmt.Errorf("get robot %d: %w", id, err)
+		return Robot{}, fmt.Errorf("get robot %d: %w", id, err)
 	}
-	return resp.Payload, nil
+	return NewRobotFromResponse(resp.Payload), nil
 }
 
 // normalizeRobotName turns any identifier into a valid Harbor robot name.
@@ -81,46 +81,70 @@ func normalizeRobotName(base, suffix string) string {
 }
 
 // CreateRobot creates a project-level robot account with pull and push access to project.
-func (c *Client) CreateRobot(ctx context.Context, name, project, description string) (*models.RobotCreated, error) {
+func (c *Client) CreateRobot(ctx context.Context, robot RobotCreate) (Robot, error) {
+	now := time.Now()
 	for range createAttempts {
-		created, err := c.createRobot(ctx, normalizeRobotName(name, strings.ToLower(rand.Text()[:8])), project, description)
+		request := newRobotCreateRequest(robot, now, strings.ToLower(rand.Text()[:8]))
+		created, err := c.createRobot(ctx, request)
 		if !errors.Is(err, ErrRobotExists) {
 			return created, err
 		}
 	}
-	return nil, ErrRobotExists
+	return Robot{}, ErrRobotExists
 }
 
-func (c *Client) createRobot(ctx context.Context, name, project, description string) (*models.RobotCreated, error) {
-	resp, err := c.api.Robot.CreateRobot(ctx, robot.NewCreateRobotParams().WithRobot(&models.RobotCreate{
-		Name:        name,
-		Description: description,
-		Duration:    1,
+func newRobotCreateRequest(robot RobotCreate, now time.Time, suffix string) *models.RobotCreate {
+	return &models.RobotCreate{
+		Name:        normalizeRobotName(robot.NameBase, suffix),
+		Description: robot.RobotMetadata.String(), //nolint:staticcheck // want to be explicit that we take the String from the embedded metadata only
+		Duration:    daysUntil(now, robot.EarlyExpiry),
 		Level:       "project",
 		Permissions: []*models.RobotPermission{{
 			Kind:      "project",
-			Namespace: project,
+			Namespace: robot.Project,
 			Access: []*models.Access{
 				{Resource: "repository", Action: "pull"},
 				{Resource: "repository", Action: "push"},
 			},
 		}},
-	}))
+	}
+}
+
+func daysUntil(now, date time.Time) int64 {
+	const day = 24 * time.Hour
+	remaining := date.Sub(now)
+	duration := int64(remaining / day)
+	if remaining%day > 0 {
+		duration++ // to make it "round up"
+	}
+	return max(1, duration) // Harbor robot duration must be at least 1
+}
+
+func (c *Client) createRobot(ctx context.Context, request *models.RobotCreate) (Robot, error) {
+	resp, err := c.api.Robot.CreateRobot(ctx, robot.NewCreateRobotParams().WithRobot(request))
 	if err != nil {
 		var apiErr *runtime.APIError
 		if errors.As(err, &apiErr) && apiErr.Code == http.StatusConflict {
-			return nil, ErrRobotExists
+			return Robot{}, ErrRobotExists
 		}
-		return nil, fmt.Errorf("create robot: %w", err)
+		return Robot{}, fmt.Errorf("create robot: %w", err)
 	}
-	return resp.Payload, nil
+	return NewRobotFromResponse(&models.Robot{
+		ID:           resp.Payload.ID,
+		Name:         resp.Payload.Name,
+		Secret:       resp.Payload.Secret,
+		CreationTime: resp.Payload.CreationTime,
+		Description:  request.Description,
+		Duration:     &request.Duration,
+		Editable:     true,
+		Level:        "project",
+	}), nil
 }
 
 // DeleteRobot deletes the robot account with the given ID, or returns ErrRobotNotFound.
 func (c *Client) DeleteRobot(ctx context.Context, id int64) error {
 	if _, err := c.api.Robot.DeleteRobot(ctx, robot.NewDeleteRobotParams().WithRobotID(id)); err != nil {
-		var notFound *robot.DeleteRobotNotFound
-		if errors.As(err, &notFound) {
+		if _, ok := errors.AsType[*robot.DeleteRobotNotFound](err); ok {
 			return ErrRobotNotFound
 		}
 		return fmt.Errorf("delete robot %d: %w", id, err)

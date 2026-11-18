@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 // harborNameRe is Harbor's own robot name check (https://github.com/goharbor/harbor/blob/8499cade41eafb3cd1de49fac2bc2c240ba758c7/src/server/v2.0/handler/robot.go#L492).
@@ -63,6 +64,48 @@ func FuzzNormalizeRobotName(f *testing.F) {
 	})
 }
 
+func TestNewRobotCreateRequest(t *testing.T) {
+	now := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name        string
+		metadata    RobotMetadata
+		duration    int64
+		description string
+	}{
+		{name: "zero expiry", duration: 1, description: ""},
+		{
+			name: "rounded expiry",
+			metadata: RobotMetadata{
+				Description: "hello",
+				EarlyExpiry: now.Add(25 * time.Hour),
+				DeleteToken: "sha256:token",
+				ManagedBy:   "roboteer",
+			},
+			duration: 2,
+			description: "desc: hello\n" +
+				"earlyExpiry: 2026-11-19T13:00:00Z\n" +
+				"deleteToken: sha256:token\n" +
+				"managedBy: roboteer",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := newRobotCreateRequest(RobotCreate{
+				NameBase: "repo:acme/foo", Project: "acme", RobotMetadata: test.metadata,
+			}, now, "abcd1234")
+			if got.Name != "repo-acme-foo-abcd1234" {
+				t.Errorf("name = %q, want %q", got.Name, "repo-acme-foo-abcd1234")
+			}
+			if got.Description != test.description {
+				t.Errorf("description = %q, want %q", got.Description, test.description)
+			}
+			if got.Duration != test.duration {
+				t.Errorf("duration = %d, want %d", got.Duration, test.duration)
+			}
+		})
+	}
+}
+
 // fakeHarbor serves Harbor's API, passing each requested robot name to respond, which writes the response.
 func fakeHarbor(t *testing.T, respond func(w http.ResponseWriter, name string)) *Client {
 	t.Helper()
@@ -94,7 +137,11 @@ func TestCreateRobotRetriesOnConflict(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"id": 1, "name": "robot$" + name, "secret": "s"})
 	})
 
-	created, err := c.CreateRobot(t.Context(), "repo:acme/foo", "acme", "desc")
+	created, err := c.CreateRobot(t.Context(), RobotCreate{
+		NameBase:    "repo:acme/foo",
+		Project:     "acme",
+		Description: "desc",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +168,11 @@ func TestCreateRobotGivesUpAfterAttempts(t *testing.T) {
 		w.WriteHeader(http.StatusConflict)
 	})
 
-	if _, err := c.CreateRobot(t.Context(), "repo:acme/foo", "acme", "desc"); !errors.Is(err, ErrRobotExists) {
+	if _, err := c.CreateRobot(t.Context(), RobotCreate{
+		NameBase:    "repo:acme/foo",
+		Project:     "acme",
+		Description: "desc",
+	}); !errors.Is(err, ErrRobotExists) {
 		t.Fatalf("err = %v, want ErrRobotExists", err)
 	}
 	if calls != createAttempts {

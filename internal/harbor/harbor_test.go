@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/client/ping"
 )
@@ -45,4 +46,27 @@ func mustParseURL(val string) *url.URL {
 		panic(err)
 	}
 	return u
+}
+
+func TestDaysUntil(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	const day = 24 * time.Hour
+	tests := []struct {
+		remaining time.Duration
+		want      int64
+	}{
+		{-2 * day, 1},
+		{0, 1},
+		{time.Nanosecond, 1},
+		{day - time.Nanosecond, 1},
+		{day, 1},
+		{day + time.Nanosecond, 2},
+		{2 * day, 2},
+		{2*day + time.Hour, 3},
+	}
+	for _, test := range tests {
+		if got := daysUntil(now, now.Add(test.remaining)); got != test.want {
+			t.Errorf("daysUntil with %v remaining = %d, want %d", test.remaining, got, test.want)
+		}
+	}
 }
