@@ -10,7 +10,7 @@ func TestFlowYAML(t *testing.T) {
 		value any
 		want  string
 	}{
-		{"identity", Identity{"b": mustPattern(t, "{repo}"), "a": mustPattern(t, "acme/x")}, "{a: acme/x, b: '{repo}'}"},
+		{"identity", Identity{"b": MustPattern("{repo}"), "a": MustPattern("acme/x")}, "{a: acme/x, b: '{repo}'}"},
 		{"empty map", Identity{}, "{}"},
 		{"nil map", Identity(nil), "{}"},
 		{"string", "hello", "hello"},
@@ -30,7 +30,7 @@ func TestFlowYAML(t *testing.T) {
 func TestConfigValidate_flatErrors(t *testing.T) {
 	cfg := Config{
 		KnownClaims: []string{"repository", "repository"},
-		Identities:  []Identity{{"foo": mustPattern(t, "bar")}},
+		Identities:  []Identity{{"foo": MustPattern("bar")}},
 	}
 	want := "identities[0].foo: claim not listed in known_claims\nknown_claims[1]: duplicate entry: repository"
 	err := cfg.Validate()

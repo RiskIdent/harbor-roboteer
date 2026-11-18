@@ -23,8 +23,8 @@ func TestIdentify(t *testing.T) {
 			config: Config{
 				KnownClaims: []string{"repository_owner", "repository", "environment"},
 				Identities: []Identity{{
-					"repository_owner": mustPattern(t, "acme"),
-					"repository":       mustPattern(t, "acme/{repo}"),
+					"repository_owner": MustPattern("acme"),
+					"repository":       MustPattern("acme/{repo}"),
 				}},
 			},
 			claims: map[string]any{
@@ -44,10 +44,10 @@ func TestIdentify(t *testing.T) {
 			name: "uses first matching identity",
 			config: Config{
 				Identities: []Identity{
-					{"repository": mustPattern(t, "acme/{repo}")},
+					{"repository": MustPattern("acme/{repo}")},
 					{
-						"repository":  mustPattern(t, "acme/{project}"),
-						"environment": mustPattern(t, "harbor"),
+						"repository":  MustPattern("acme/{project}"),
+						"environment": MustPattern("harbor"),
 					},
 				},
 			},
@@ -105,21 +105,21 @@ func TestIdentifyErrors(t *testing.T) {
 			name: "non-string known claim",
 			config: Config{
 				KnownClaims: []string{"groups"},
-				Identities:  []Identity{{"groups": mustPattern(t, "{group}")}},
+				Identities:  []Identity{{"groups": MustPattern("{group}")}},
 			},
 			claims: map[string]any{"groups": []any{"developers"}},
 		},
 		{
 			name: "missing claim",
 			config: Config{
-				Identities: []Identity{{"repository": mustPattern(t, "acme/{repo}")}},
+				Identities: []Identity{{"repository": MustPattern("acme/{repo}")}},
 			},
 			claims: map[string]any{"repository_owner": "acme"},
 		},
 		{
 			name: "pattern does not match",
 			config: Config{
-				Identities: []Identity{{"repository": mustPattern(t, "acme/{repo}")}},
+				Identities: []Identity{{"repository": MustPattern("acme/{repo}")}},
 			},
 			claims: map[string]any{"repository": "contoso/api"},
 		},
@@ -127,8 +127,8 @@ func TestIdentifyErrors(t *testing.T) {
 			name: "capture conflicts with claim",
 			config: Config{
 				Identities: []Identity{{
-					"first":  mustPattern(t, "{second}"),
-					"second": mustPattern(t, "literal"),
+					"first":  MustPattern("{second}"),
+					"second": MustPattern("literal"),
 				}},
 			},
 			claims: map[string]any{"first": "captured", "second": "literal"},
@@ -152,7 +152,7 @@ func TestEvaluateSystemPermissions(t *testing.T) {
 			Grants: map[string]SystemGrant{
 				"create project": {
 					When:  When{"repository": "acme/bootstrap"},
-					Roles: []Pattern{mustPattern(t, "{role}")},
+					Roles: []Pattern{MustPattern("{role}")},
 					Permissions: SystemPermissions{
 						"resource-a": {"action-from-create-project-grant"},
 					},
@@ -204,15 +204,15 @@ func TestEvaluateProjectPermissions(t *testing.T) {
 			Grants: map[string]ProjectGrant{
 				"own project": {
 					When:     When{"environment": "harbor"},
-					Projects: []Pattern{mustPattern(t, "{repository_owner}-{repo}")},
-					Roles:    []Pattern{mustPattern(t, "{role}")},
+					Projects: []Pattern{MustPattern("{repository_owner}-{repo}")},
+					Roles:    []Pattern{MustPattern("{role}")},
 					Permissions: ProjectPermissions{
 						"resource-a": {"action-from-own-project-grant"},
 					},
 				},
 				"shared project": {
 					When:     When{"repository": "acme/api"},
-					Projects: []Pattern{mustPattern(t, "{repository_owner}-{repo}")},
+					Projects: []Pattern{MustPattern("{repository_owner}-{repo}")},
 					Permissions: ProjectPermissions{
 						"resource-a": {"action-from-shared-project-grant"},
 						"resource-c": {"shared-action"},
@@ -220,7 +220,7 @@ func TestEvaluateProjectPermissions(t *testing.T) {
 				},
 				"unused": {
 					When:        When{"environment": "production"},
-					Projects:    []Pattern{mustPattern(t, "unrelated")},
+					Projects:    []Pattern{MustPattern("unrelated")},
 					Permissions: ProjectPermissions{"resource-a": {"action-from-unused"}},
 				},
 			},
@@ -264,7 +264,7 @@ func TestEvaluateAllProjectPermissions(t *testing.T) {
 			Grants: map[string]AllProjectGrant{
 				"scan": {
 					When:  When{"repository": "acme/scanner"},
-					Roles: []Pattern{mustPattern(t, "{role}")},
+					Roles: []Pattern{MustPattern("{role}")},
 					Permissions: ProjectPermissions{
 						"resource-a": {"action-from-scan-grant"},
 					},
@@ -311,8 +311,8 @@ func TestEvaluateProjectPermissionsError(t *testing.T) {
 			config: Config{
 				Projects: Projects{Grants: map[string]ProjectGrant{
 					"unknown role": {
-						Projects: []Pattern{mustPattern(t, "acme")},
-						Roles:    []Pattern{mustPattern(t, "missing")},
+						Projects: []Pattern{MustPattern("acme")},
+						Roles:    []Pattern{MustPattern("missing")},
 					},
 				}},
 			},
@@ -322,7 +322,7 @@ func TestEvaluateProjectPermissionsError(t *testing.T) {
 			config: Config{
 				Projects: Projects{Grants: map[string]ProjectGrant{
 					"missing capture": {
-						Projects: []Pattern{mustPattern(t, "{project}")},
+						Projects: []Pattern{MustPattern("{project}")},
 					},
 				}},
 			},

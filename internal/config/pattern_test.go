@@ -302,7 +302,7 @@ func TestPatternCanFormat(t *testing.T) {
 }
 
 func TestPatternCanFormat_falsePositive(t *testing.T) {
-	pattern := mustPattern(t, "{env}-pull")
+	pattern := MustPattern("{env}-pull")
 
 	// known false-positive, acceptable for our use-case:
 	// as an identity, "a-pull" can never be captured, as Match splits at the first "-pull",
