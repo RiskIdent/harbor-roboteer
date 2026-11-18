@@ -1,6 +1,9 @@
 package config
 
-import "slices"
+import (
+	"iter"
+	"slices"
+)
 
 // Set is a utility type consisting of only distinct values.
 // Order is not guaranteed.
@@ -23,6 +26,12 @@ func (s *Set[T]) Add(value T) bool {
 	}
 	*s = append(*s, value)
 	return true
+}
+
+func (s *Set[T]) AddSeq(values iter.Seq[T]) {
+	for value := range values {
+		s.Add(value)
+	}
 }
 
 func (s *Set[T]) Delete(value T) bool {
