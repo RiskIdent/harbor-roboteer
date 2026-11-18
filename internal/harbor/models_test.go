@@ -1,36 +1,34 @@
 package harbor
 
 import (
-	"net/http"
 	"reflect"
-	"strings"
 	"testing"
+	"time"
+
+	"github.com/go-openapi/strfmt"
+	"github.com/goharbor/go-client/pkg/sdk/v2.0/models"
 )
 
-func TestDescriptionKVString(t *testing.T) {
+func TestRobotMetadataString(t *testing.T) {
 	tests := []struct {
 		name  string
-		input DescriptionKV
+		input RobotMetadata
 		want  string
 	}{
-		{name: "empty", input: DescriptionKV{}, want: ""},
+		{name: "empty", input: RobotMetadata{}, want: "{}\n"},
+		{name: "description", input: RobotMetadata{Description: "hello"}, want: "desc: hello\n"},
+		{name: "delete token", input: RobotMetadata{DeleteToken: "foobar"}, want: "deleteToken: foobar\n"},
 		{
-			name:  "only message",
-			input: DescriptionKV{Message: "hello"},
-			want:  "hello",
-		},
-		{
-			name:  "only kv",
-			input: DescriptionKV{KV: http.Header{"Key": {"value"}}},
-			want:  "Key: value",
-		},
-		{
-			name:  "message and kv",
-			input: DescriptionKV{Message: "hello", KV: http.Header{"Key": {"value1", "value2"}}},
-			want:  "hello\n\nKey: value1\nKey: value2",
+			name: "full",
+			input: RobotMetadata{
+				Description: "hello",
+				EarlyExpiry: time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC),
+				DeleteToken: "heyomayo",
+				ManagedBy:   "harbor-roboteer",
+			},
+			want: "desc: hello\nearlyExpiry: 2026-11-18T12:00:00Z\ndeleteToken: heyomayo\nmanagedBy: harbor-roboteer\n",
 		},
 	}
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if got := test.input.String(); got != test.want {
@@ -40,48 +38,40 @@ func TestDescriptionKVString(t *testing.T) {
 	}
 }
 
-func TestParseDescriptionKV(t *testing.T) {
+func TestParseRobotMetadata(t *testing.T) {
+	creation := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+	early := creation.Add(time.Hour)
 	tests := []struct {
-		name  string
-		input string
-		want  DescriptionKV
+		name     string
+		input    string
+		duration *int64
+		want     RobotMetadata
 	}{
-		{name: "empty", input: "", want: DescriptionKV{}},
-		{name: "only whitespace", input: "   \n  \t\n\n  ", want: DescriptionKV{}},
-		{name: "only message", input: "hello world!", want: DescriptionKV{Message: "hello world!"}},
-		{name: "multiline message", input: "hello\nworld\n!", want: DescriptionKV{Message: "hello\nworld\n!"}},
-		{name: "trim whitespace", input: "  hello\n  world!  \n\n  ", want: DescriptionKV{Message: "hello\n  world!"}},
-		{name: "only kv", input: "some-key: some-value", want: DescriptionKV{KV: http.Header{
-			"Some-Key": {"some-value"},
-		}}},
-		{name: "trailing blank lines after kv", input: "hello\n\nkey: value\n\n  ", want: DescriptionKV{
-			Message: "hello",
-			KV:      http.Header{"Key": {"value"}},
-		}},
-		{name: "crlf and case-insensitive duplicates", input: "hello\r\n\r\nkey: first\r\nKEY: second: more\r\n", want: DescriptionKV{
-			Message: "hello",
-			KV:      http.Header{"Key": {"first", "second: more"}},
-		}},
-		{name: "invalid key stops metadata", input: "hello\ninvalid key: value\nkey: value", want: DescriptionKV{
-			Message: "hello\ninvalid key: value",
-			KV:      http.Header{"Key": {"value"}},
-		}},
-		{name: "indented line stops metadata", input: "hello\n key: value\nkey: value", want: DescriptionKV{
-			Message: "hello\n key: value",
-			KV:      http.Header{"Key": {"value"}},
-		}},
-		{name: "valid mix", input: "hello world!\n\nsome-key: some-value\nother-key: other-value1\nother-key: other-value2", want: DescriptionKV{
-			Message: "hello world!",
-			KV: http.Header{
-				"Some-Key":  {"some-value"},
-				"Other-Key": {"other-value1", "other-value2"},
-			},
-		}},
+		{name: "empty", input: "", want: RobotMetadata{}},
+		{name: "plain description", input: "hello world!", want: RobotMetadata{Description: "hello world!"}},
+		{name: "malformed yaml", input: "desc: [", want: RobotMetadata{Description: "desc: ["}},
+		{
+			name:  "yaml metadata",
+			input: "desc: hello\nearlyExpiry: 2026-11-18T13:00:00Z\ndeleteToken: token\nmanagedBy: roboteer\n",
+			want:  RobotMetadata{Description: "hello", EarlyExpiry: early, DeleteToken: "token", ManagedBy: "roboteer"},
+		},
+		{
+			name:     "early expiry overrides duration",
+			input:    "earlyExpiry: 2026-11-18T13:00:00Z\n",
+			duration: new(int64(2)),
+			want:     RobotMetadata{EarlyExpiry: early},
+		},
+		{
+			name:     "duration fallback",
+			input:    "desc: hello\n",
+			duration: new(int64(2)),
+			want:     RobotMetadata{Description: "hello", EarlyExpiry: creation.Add(48 * time.Hour)},
+		},
+		{name: "never expires", input: "desc: hello\n", duration: new(int64(-1)), want: RobotMetadata{Description: "hello"}},
 	}
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := ParseDescriptionKV(test.input)
+			got := ParseRobotMetadata(test.input, strfmt.DateTime(creation), test.duration)
 			if !reflect.DeepEqual(got, test.want) {
 				t.Errorf("wrong result\nwant: %#v\ngot:  %#v", test.want, got)
 			}
@@ -89,19 +79,40 @@ func TestParseDescriptionKV(t *testing.T) {
 	}
 }
 
-func FuzzParseDescriptionKV(f *testing.F) {
-	for _, seed := range []string{"", "hello", "hello\n\nkey: value", "key: first\nKEY: second", "  \nkey: value\n\n"} {
-		f.Add(seed)
+func TestRobotMetadataRoundTrip(t *testing.T) {
+	input := RobotMetadata{
+		Description: "hello: world\nsecond line",
+		EarlyExpiry: time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC),
+		DeleteToken: "sha256:0123",
+		ManagedBy:   "harbor-roboteer",
 	}
-	f.Fuzz(func(t *testing.T, input string) {
-		got := ParseDescriptionKV(input)
-		crlf := ParseDescriptionKV(strings.ReplaceAll(input, "\n", "\r\n"))
-		if !reflect.DeepEqual(got, crlf) {
-			t.Errorf("LF and CRLF results differ for %q: %#v != %#v", input, got, crlf)
-		}
-		trailingWhitespace := ParseDescriptionKV(input + "\n\n \t")
-		if !reflect.DeepEqual(got, trailingWhitespace) {
-			t.Errorf("trailing whitespace changes result for %q: %#v != %#v", input, got, trailingWhitespace)
-		}
+	got := ParseRobotMetadata(input.String(), strfmt.DateTime(time.Time{}), nil)
+	if !reflect.DeepEqual(got, input) {
+		t.Errorf("wrong result\nwant: %#v\ngot:  %#v", input, got)
+	}
+}
+
+func TestNewRobotFromResponse(t *testing.T) {
+	creation := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+	got := NewRobotFromResponse(&models.Robot{
+		ID:           42,
+		Name:         "robot$example",
+		Secret:       "secret",
+		CreationTime: strfmt.DateTime(creation),
+		Description:  "desc: hello\ndeleteToken: token\n",
+		Duration:     new(int64(2)),
 	})
+	want := Robot{
+		ID:     42,
+		Name:   "robot$example",
+		Secret: "secret",
+		RobotMetadata: RobotMetadata{
+			Description: "hello",
+			EarlyExpiry: creation.Add(48 * time.Hour),
+			DeleteToken: "token",
+		},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("wrong result\nwant: %#v\ngot:  %#v", want, got)
+	}
 }

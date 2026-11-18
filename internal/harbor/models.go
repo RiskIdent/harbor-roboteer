@@ -1,110 +1,54 @@
 package harbor
 
 import (
-	"maps"
-	"net/http"
-	"regexp"
-	"slices"
-	"strings"
 	"time"
-	"unicode"
+
+	"github.com/go-openapi/strfmt"
+	"github.com/goharbor/go-client/pkg/sdk/v2.0/models"
+	"go.yaml.in/yaml/v3"
 )
 
 type RobotCreate struct {
-	NameBase    string
-	Project     string
-	Expiry      *time.Time
-	Description DescriptionKV
+	NameBase string
+	Project  string
+	RobotMetadata
+}
+
+func NewRobotFromResponse(resp *models.Robot) Robot {
+	return Robot{
+		ID:            resp.ID,
+		Name:          resp.Name,
+		Secret:        resp.Secret,
+		RobotMetadata: ParseRobotMetadata(resp.Description, resp.CreationTime, resp.Duration),
+	}
 }
 
 type Robot struct {
-	ID          int64
-	Name        string
-	Expiry      *time.Time
-	Secret      string
-	Description DescriptionKV
+	ID     int64
+	Name   string
+	Secret string
+	RobotMetadata
 }
 
-type DescriptionKV struct {
-	Message string
-	KV      http.Header
+type RobotMetadata struct {
+	Description string    `yaml:"desc,omitempty"`
+	EarlyExpiry time.Time `yaml:"earlyExpiry,omitempty"`
+	DeleteToken string    `yaml:"deleteToken,omitempty"`
+	ManagedBy   string    `yaml:"managedBy,omitempty"`
 }
 
-func (d DescriptionKV) String() string {
-	var sb strings.Builder
-	if d.Message != "" {
-		sb.WriteString(d.Message)
-	}
-	if d.KV != nil {
-		if d.Message != "" {
-			sb.WriteByte('\n')
-		}
-		// http.Header does have a .Write func, but that one uses "\r\n" delimiters...
-		for _, key := range slices.Sorted(maps.Keys(d.KV)) {
-			for _, value := range d.KV[key] {
-				if sb.Len() > 0 {
-					sb.WriteByte('\n')
-				}
-				sb.WriteString(key)
-				sb.WriteString(": ")
-				sb.WriteString(value)
-			}
-		}
-	}
-	return sb.String()
+func (m RobotMetadata) String() string {
+	b, _ := yaml.Marshal(m) // can't error
+	return string(b)
 }
 
-func ParseDescriptionKV(desc string) DescriptionKV {
-	lines := slices.Collect(strings.Lines(strings.TrimRightFunc(desc, unicode.IsSpace)))
-
-	for i, line := range lines {
-		if i == 0 {
-			lines[i] = strings.TrimSpace(line)
-		} else {
-			lines[i] = strings.TrimRightFunc(line, unicode.IsSpace)
-		}
+func ParseRobotMetadata(desc string, creationTime strfmt.DateTime, duration *int64) RobotMetadata {
+	var metadata RobotMetadata
+	if err := yaml.Unmarshal([]byte(desc), &metadata); err != nil {
+		metadata.Description = desc
 	}
-
-	var kv http.Header
-	for i, line := range slices.Backward(lines) {
-		if line == "" {
-			lines = lines[:i] // "pop" line
-			break
-		}
-		key, value, ok := cutKeyValue(line)
-		if !ok {
-			break
-		}
-		lines = lines[:i] // "pop" line
-		if kv == nil {
-			kv = http.Header{}
-		}
-		kv.Add(key, value)
+	if metadata.EarlyExpiry.IsZero() && duration != nil && *duration != -1 {
+		metadata.EarlyExpiry = time.Time(creationTime).Add(24 * time.Hour * time.Duration(*duration))
 	}
-
-	for key := range kv {
-		// because we added them in reverse order
-		slices.Reverse(kv[key])
-	}
-
-	return DescriptionKV{
-		Message: strings.TrimRightFunc(strings.Join(lines, "\n"), unicode.IsSpace),
-		KV:      kv,
-	}
-}
-
-var validKeyRegexp = regexp.MustCompile(`^[a-zA-Z0-9\-]+(-[a-zA-Z0-9\-]+)*$`)
-
-func cutKeyValue(s string) (string, string, bool) {
-	key, value, ok := strings.Cut(s, ":")
-	if !ok {
-		return "", "", false
-	}
-	if value != "" && !strings.HasPrefix(value, " ") {
-		return "", "", false
-	}
-	if !validKeyRegexp.MatchString(key) {
-		return "", "", false
-	}
-	return key, strings.TrimSpace(value), true
+	return metadata
 }

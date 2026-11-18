@@ -13,7 +13,6 @@ import (
 
 	"github.com/go-openapi/runtime"
 	httptransport "github.com/go-openapi/runtime/client"
-	"github.com/go-openapi/strfmt"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	v2client "github.com/goharbor/go-client/pkg/sdk/v2.0/client"
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/client/ping"
@@ -70,7 +69,7 @@ func (c *Client) GetRobotByID(ctx context.Context, id int64) (Robot, error) {
 		}
 		return Robot{}, fmt.Errorf("get robot %d: %w", id, err)
 	}
-	return newRobotFromResponse(resp.Payload), nil
+	return NewRobotFromResponse(resp.Payload), nil
 }
 
 // normalizeRobotName turns any identifier into a valid Harbor robot name.
@@ -83,34 +82,13 @@ func normalizeRobotName(base, suffix string) string {
 	return base + "-" + suffix
 }
 
-func parseRobotExpiry(desc DescriptionKV, creation strfmt.DateTime, duration *int64) *time.Time {
-	if early, err := time.Parse(earlyExpiryFormat, desc.KV.Get(earlyExpiryKey)); err == nil {
-		return &early
-	}
-	if duration != nil && *duration != -1 {
-		expiry := time.Time(creation).Add(24 * time.Hour * time.Duration(*duration))
-		return &expiry
-	}
-	return nil
-}
-
 // CreateRobot creates a project-level robot account with pull and push access to project.
 func (c *Client) CreateRobot(ctx context.Context, robot RobotCreate) (Robot, error) {
-	robot.Description.KV = robot.Description.KV.Clone()
-	if robot.Description.KV == nil {
-		robot.Description.KV = http.Header{}
-	}
-	var duration int64
-	if robot.Expiry == nil {
-		robot.Description.KV.Del(earlyExpiryKey)
-		duration = -1 // means "never expire"
-	} else {
-		robot.Description.KV.Set(earlyExpiryKey, robot.Expiry.Format(earlyExpiryFormat))
-		duration = daysUntil(time.Now(), *robot.Expiry)
-	}
+	duration := daysUntil(time.Now(), robot.EarlyExpiry)
+	desc := robot.RobotMetadata.String()
 	for range createAttempts {
 		name := normalizeRobotName(robot.NameBase, strings.ToLower(rand.Text()[:8]))
-		created, err := c.createRobot(ctx, name, robot.Project, robot.Description.String(), duration)
+		created, err := c.createRobot(ctx, name, robot.Project, desc, duration)
 		if !errors.Is(err, ErrRobotExists) {
 			return created, err
 		}
@@ -150,7 +128,7 @@ func (c *Client) createRobot(ctx context.Context, name, project, description str
 		}
 		return Robot{}, fmt.Errorf("create robot: %w", err)
 	}
-	return newRobotFromResponse(&models.Robot{
+	return NewRobotFromResponse(&models.Robot{
 		ID:           resp.Payload.ID,
 		Name:         resp.Payload.Name,
 		Secret:       resp.Payload.Secret,
@@ -160,19 +138,6 @@ func (c *Client) createRobot(ctx context.Context, name, project, description str
 		Editable:     true,
 		Level:        "project",
 	}), nil
-}
-
-func newRobotFromResponse(resp *models.Robot) Robot {
-	desc := ParseDescriptionKV(resp.Description)
-	expiry := parseRobotExpiry(desc, resp.CreationTime, resp.Duration)
-	desc.KV.Del(earlyExpiryKey) // hide internal key from result
-	return Robot{
-		ID:          resp.ID,
-		Name:        resp.Name,
-		Secret:      resp.Secret,
-		Expiry:      expiry,
-		Description: desc,
-	}
 }
 
 // DeleteRobot deletes the robot account with the given ID, or returns ErrRobotNotFound.

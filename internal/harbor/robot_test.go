@@ -97,7 +97,7 @@ func TestCreateRobotRetriesOnConflict(t *testing.T) {
 	created, err := c.CreateRobot(t.Context(), RobotCreate{
 		NameBase:    "repo:acme/foo",
 		Project:     "acme",
-		Description: DescriptionKV{Message: "desc"},
+		Description: "desc",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -128,7 +128,7 @@ func TestCreateRobotGivesUpAfterAttempts(t *testing.T) {
 	if _, err := c.CreateRobot(t.Context(), RobotCreate{
 		NameBase:    "repo:acme/foo",
 		Project:     "acme",
-		Description: DescriptionKV{Message: "desc"},
+		Description: "desc",
 	}); !errors.Is(err, ErrRobotExists) {
 		t.Fatalf("err = %v, want ErrRobotExists", err)
 	}

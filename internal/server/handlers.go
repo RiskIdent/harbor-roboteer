@@ -118,16 +118,12 @@ func (s *Server) postToken(w http.ResponseWriter, r *http.Request) {
 	/* TODO: remove test log */ s.log.DebugContext(ctx, "config", slog.Any("knownClaims", cfg.KnownClaims))
 
 	created, err := s.harbor.CreateRobot(r.Context(), harbor.RobotCreate{
-		NameBase: name,
-		Project:  req.Project,
-		Expiry:   new(time.Now().Add(time.Hour)), // TODO: probably want to template this
-		Description: harbor.DescriptionKV{
-			Message: fmt.Sprintf("Robot account for OIDC user %q", cmp.Or(sub, "(unknown JWT sub)")),
-			KV: http.Header{
-				deleteTokenKey: {deleteTokenPrefix + hex.EncodeToString(hash[:])},
-				"Managed-By":   {"harbor-roboteer " + s.version},
-			},
-		},
+		NameBase:    name,
+		Project:     req.Project,
+		EarlyExpiry: time.Now().Add(time.Hour), // TODO: probably want to template this
+		Description: fmt.Sprintf("Robot account for OIDC user %q", cmp.Or(sub, "(unknown JWT sub)")),
+		DeleteToken: deleteTokenPrefix + hex.EncodeToString(hash[:]),
+		ManagedBy:   "harbor-roboteer " + s.version,
 	})
 	s.countRobotOp("create", err)
 	if errors.Is(err, harbor.ErrRobotExists) {
@@ -178,7 +174,7 @@ func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
 
 	hash := sha256.Sum256([]byte(token))
 	want := deleteTokenPrefix + hex.EncodeToString(hash[:])
-	if subtle.ConstantTimeCompare([]byte(rb.Description.KV.Get(deleteTokenKey)), []byte(want)) != 1 {
+	if subtle.ConstantTimeCompare([]byte(rb.DeleteToken), []byte(want)) != 1 {
 		http.Error(w, errInvalidDeleteCombo, http.StatusForbidden)
 		return
 	}
