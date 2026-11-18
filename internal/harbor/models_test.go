@@ -15,9 +15,9 @@ func TestRobotMetadataString(t *testing.T) {
 		input RobotMetadata
 		want  string
 	}{
-		{name: "empty", input: RobotMetadata{}, want: "{}\n"},
-		{name: "description", input: RobotMetadata{Description: "hello"}, want: "desc: hello\n"},
-		{name: "delete token", input: RobotMetadata{DeleteToken: "foobar"}, want: "deleteToken: foobar\n"},
+		{name: "empty", input: RobotMetadata{}, want: ""},
+		{name: "description", input: RobotMetadata{Description: "hello"}, want: "desc: hello"},
+		{name: "delete token", input: RobotMetadata{DeleteToken: "foobar"}, want: "deleteToken: foobar"},
 		{
 			name: "full",
 			input: RobotMetadata{
@@ -26,7 +26,10 @@ func TestRobotMetadataString(t *testing.T) {
 				DeleteToken: "heyomayo",
 				ManagedBy:   "harbor-roboteer",
 			},
-			want: "desc: hello\nearlyExpiry: 2026-11-18T12:00:00Z\ndeleteToken: heyomayo\nmanagedBy: harbor-roboteer\n",
+			want: "desc: hello\n" +
+				"earlyExpiry: 2026-11-18T12:00:00Z\n" +
+				"deleteToken: heyomayo\n" +
+				"managedBy: harbor-roboteer",
 		},
 	}
 	for _, test := range tests {

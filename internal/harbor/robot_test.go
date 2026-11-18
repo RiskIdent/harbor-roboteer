@@ -72,7 +72,7 @@ func TestNewRobotCreateRequest(t *testing.T) {
 		duration    int64
 		description string
 	}{
-		{name: "zero expiry", duration: 1, description: "{}\n"},
+		{name: "zero expiry", duration: 1, description: ""},
 		{
 			name: "rounded expiry",
 			metadata: RobotMetadata{
@@ -81,8 +81,11 @@ func TestNewRobotCreateRequest(t *testing.T) {
 				DeleteToken: "sha256:token",
 				ManagedBy:   "roboteer",
 			},
-			duration:    2,
-			description: "desc: hello\nearlyExpiry: 2026-11-19T13:00:00Z\ndeleteToken: sha256:token\nmanagedBy: roboteer\n",
+			duration: 2,
+			description: "desc: hello\n" +
+				"earlyExpiry: 2026-11-19T13:00:00Z\n" +
+				"deleteToken: sha256:token\n" +
+				"managedBy: roboteer",
 		},
 	}
 	for _, test := range tests {

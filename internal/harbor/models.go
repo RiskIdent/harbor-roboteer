@@ -1,6 +1,7 @@
 package harbor
 
 import (
+	"bytes"
 	"time"
 
 	"github.com/go-openapi/strfmt"
@@ -38,8 +39,11 @@ type RobotMetadata struct {
 }
 
 func (m RobotMetadata) String() string {
+	if m == (RobotMetadata{}) {
+		return ""
+	}
 	b, _ := yaml.Marshal(m) // can't error
-	return string(b)
+	return string(bytes.TrimSpace(b))
 }
 
 func ParseRobotMetadata(desc string, creationTime strfmt.DateTime, duration *int64) RobotMetadata {
