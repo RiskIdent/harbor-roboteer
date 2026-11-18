@@ -9,6 +9,7 @@ import (
 )
 
 func TestConfigValidate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		cfg     func(t *testing.T) Config
@@ -339,6 +340,7 @@ func TestConfigValidate(t *testing.T) {
 }
 
 func TestIdentityMatch(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		identity Identity
@@ -392,6 +394,7 @@ func TestIdentityMatch(t *testing.T) {
 }
 
 func TestGrantPlaceholderNames(t *testing.T) {
+	t.Parallel()
 	p := func(s string) []Pattern { return []Pattern{MustPattern(s)} }
 	tests := []struct {
 		name  string
@@ -414,6 +417,7 @@ func TestGrantPlaceholderNames(t *testing.T) {
 }
 
 func TestWhenMatchesClaims(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		when   When

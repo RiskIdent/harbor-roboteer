@@ -5,6 +5,7 @@ import (
 )
 
 func TestFlowYAML(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		value any
@@ -28,6 +29,7 @@ func TestFlowYAML(t *testing.T) {
 }
 
 func TestConfigValidate_flatErrors(t *testing.T) {
+	t.Parallel()
 	cfg := Config{
 		KnownClaims: []string{"repository", "repository"},
 		Identities:  []Identity{{"foo": MustPattern("bar")}},
@@ -40,6 +42,7 @@ func TestConfigValidate_flatErrors(t *testing.T) {
 }
 
 func TestJoinPath(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		path, key, want string
 	}{

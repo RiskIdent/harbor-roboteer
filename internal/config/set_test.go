@@ -6,6 +6,7 @@ import (
 )
 
 func TestSet(t *testing.T) {
+	t.Parallel()
 	values := NewSet[string](3)
 	if !values.Add("one") {
 		t.Fatal("first addition should report a new value")

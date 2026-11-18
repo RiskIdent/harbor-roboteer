@@ -12,6 +12,7 @@ func claimSeq(claims map[string]any) iter.Seq2[string, any] {
 }
 
 func TestIdentify(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		config Config
@@ -96,6 +97,7 @@ func TestIdentify(t *testing.T) {
 }
 
 func TestIdentifyErrors(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		config Config
@@ -144,6 +146,7 @@ func TestIdentifyErrors(t *testing.T) {
 }
 
 func TestEvaluateSystemPermissions(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		System: System{
 			Roles: map[string]SystemPermissions{
@@ -193,6 +196,7 @@ func TestEvaluateSystemPermissions(t *testing.T) {
 }
 
 func TestEvaluateProjectPermissions(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		Projects: Projects{
 			Roles: map[string]ProjectPermissions{
@@ -254,6 +258,7 @@ func TestEvaluateProjectPermissions(t *testing.T) {
 }
 
 func TestEvaluateAllProjectPermissions(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		Projects: Projects{
 			Roles: map[string]ProjectPermissions{
@@ -301,6 +306,7 @@ func TestEvaluateAllProjectPermissions(t *testing.T) {
 }
 
 func TestEvaluateProjectPermissionsError(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		config Config
