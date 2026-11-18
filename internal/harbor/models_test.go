@@ -106,14 +106,12 @@ func TestNewRobotFromResponse(t *testing.T) {
 		Duration:     new(int64(2)),
 	})
 	want := Robot{
-		ID:     42,
-		Name:   "robot$example",
-		Secret: "secret",
-		RobotMetadata: RobotMetadata{
-			Description: "hello",
-			EarlyExpiry: creation.Add(48 * time.Hour),
-			DeleteToken: "token",
-		},
+		ID:          42,
+		Name:        "robot$example",
+		Secret:      "secret",
+		Description: "hello",
+		EarlyExpiry: creation.Add(48 * time.Hour),
+		DeleteToken: "token",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("wrong result\nwant: %#v\ngot:  %#v", want, got)
