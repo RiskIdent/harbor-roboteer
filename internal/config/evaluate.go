@@ -1,6 +1,7 @@
 package config
 
 import (
+	"cmp"
 	"fmt"
 	"iter"
 	"maps"
@@ -11,6 +12,31 @@ type EvaluatedPermissions struct {
 	ProjectPermissions    map[string]ProjectPermissions
 	AllProjectPermissions ProjectPermissions
 	SystemPermissions     SystemPermissions
+	Grants                []AppliedGrant
+}
+
+type AppliedGrantScope string
+
+const (
+	AppliedGrantProject    AppliedGrantScope = "project"
+	AppliedGrantAllProject AppliedGrantScope = "all_projects"
+	AppliedGrantSystem     AppliedGrantScope = "system"
+)
+
+type AppliedGrant struct {
+	// JSON and YAML tags are added for slog's JSON and Text handlers
+	ID          string              `json:"id" yaml:"id"`
+	Scope       AppliedGrantScope   `json:"scope" yaml:"scope"`
+	Projects    []string            `json:"projects,omitempty" yaml:"projects,omitempty"`
+	Roles       []string            `json:"roles,omitempty" yaml:"roles,omitempty"`
+	Permissions map[string][]string `json:"permissions,omitempty" yaml:"permissions,omitempty"`
+}
+
+// String implements [fmt.Stringer].
+//
+// Primarily implemented so that the [log/slog.TextHandler] has a pretty representation of this value.
+func (g AppliedGrant) String() string {
+	return flowYAML(g)
 }
 
 func (c *Config) Identify(claims iter.Seq2[string, any]) (map[string]string, error) {
@@ -36,15 +62,15 @@ func (c *Config) Identify(claims iter.Seq2[string, any]) (map[string]string, err
 }
 
 func (c *Config) Evaluate(claims map[string]string) (EvaluatedPermissions, error) {
-	projectPermissions, err := c.evaluateProjects(claims)
+	projectPermissions, projectGrants, err := c.evaluateProjects(claims)
 	if err != nil {
 		return EvaluatedPermissions{}, err
 	}
-	allProjectPermissions, err := c.evaluateAllProjects(claims)
+	allProjectPermissions, allProjectGrants, err := c.evaluateAllProjects(claims)
 	if err != nil {
 		return EvaluatedPermissions{}, err
 	}
-	systemPermissions, err := c.evaluateSystem(claims)
+	systemPermissions, systemGrants, err := c.evaluateSystem(claims)
 	if err != nil {
 		return EvaluatedPermissions{}, err
 	}
@@ -52,67 +78,92 @@ func (c *Config) Evaluate(claims map[string]string) (EvaluatedPermissions, error
 		ProjectPermissions:    projectPermissions,
 		AllProjectPermissions: allProjectPermissions,
 		SystemPermissions:     systemPermissions,
+		Grants:                sortedGrants(projectGrants, allProjectGrants, systemGrants),
 	}, nil
 }
 
-func (c *Config) evaluateProjects(claims map[string]string) (map[string]ProjectPermissions, error) {
+func (c *Config) evaluateProjects(claims map[string]string) (map[string]ProjectPermissions, []AppliedGrant, error) {
 	var projectPermissions map[string]ProjectPermissions
-	for _, grant := range c.Projects.Grants {
+	var grants []AppliedGrant
+	for grantID, grant := range c.Projects.Grants {
 		if !grant.When.MatchesClaims(claims) {
 			continue
 		}
-		permissions, err := permissionsFromRoles(claims, grant.Roles, c.Projects.Roles)
+		permissions, roleNames, err := permissionsFromRoles(claims, grant.Roles, c.Projects.Roles)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		mergePermissionsInto(&permissions, grant.Permissions)
+		applied := AppliedGrant{
+			ID:          grantID,
+			Scope:       AppliedGrantProject,
+			Roles:       roleNames,
+			Permissions: copyPermissions(permissions),
+		}
 		for _, projectPattern := range grant.Projects {
 			project, err := projectPattern.Format(claims)
 			if err != nil {
-				return nil, fmt.Errorf("format project %q: %w", projectPattern, err)
+				return nil, nil, fmt.Errorf("format project %q: %w", projectPattern, err)
 			}
 			if projectPermissions == nil {
 				projectPermissions = make(map[string]ProjectPermissions)
 			}
 			mergeProjectPermissionsInto(projectPermissions, project, permissions)
+			applied.Projects = append(applied.Projects, project)
 		}
+		slices.Sort(applied.Projects)
+		grants = append(grants, applied)
 	}
 	for _, permissions := range projectPermissions {
 		sortPermissions(permissions)
 	}
-	return projectPermissions, nil
+	return projectPermissions, grants, nil
 }
 
-func (c *Config) evaluateAllProjects(claims map[string]string) (ProjectPermissions, error) {
+func (c *Config) evaluateAllProjects(claims map[string]string) (ProjectPermissions, []AppliedGrant, error) {
 	var permissions ProjectPermissions
-	for _, grant := range c.AllProjects.Grants {
+	var grants []AppliedGrant
+	for grantID, grant := range c.AllProjects.Grants {
 		if grant.When.MatchesClaims(claims) {
-			rolePermissions, err := permissionsFromRoles(claims, grant.Roles, c.Projects.Roles)
+			rolePermissions, roleNames, err := permissionsFromRoles(claims, grant.Roles, c.Projects.Roles)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			mergePermissionsInto(&permissions, rolePermissions)
 			mergePermissionsInto(&permissions, grant.Permissions)
+			grants = append(grants, AppliedGrant{
+				ID:          grantID,
+				Scope:       AppliedGrantAllProject,
+				Roles:       roleNames,
+				Permissions: mergeAndCopyPermissions(rolePermissions, grant.Permissions),
+			})
 		}
 	}
 	sortPermissions(permissions)
-	return permissions, nil
+	return permissions, grants, nil
 }
 
-func (c *Config) evaluateSystem(claims map[string]string) (SystemPermissions, error) {
+func (c *Config) evaluateSystem(claims map[string]string) (SystemPermissions, []AppliedGrant, error) {
 	var permissions SystemPermissions
-	for _, grant := range c.System.Grants {
+	var grants []AppliedGrant
+	for grantID, grant := range c.System.Grants {
 		if grant.When.MatchesClaims(claims) {
-			rolePermissions, err := permissionsFromRoles(claims, grant.Roles, c.System.Roles)
+			rolePermissions, roleNames, err := permissionsFromRoles(claims, grant.Roles, c.System.Roles)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			mergePermissionsInto(&permissions, rolePermissions)
 			mergePermissionsInto(&permissions, grant.Permissions)
+			grants = append(grants, AppliedGrant{
+				ID:          grantID,
+				Scope:       AppliedGrantSystem,
+				Roles:       roleNames,
+				Permissions: mergeAndCopyPermissions(rolePermissions, grant.Permissions),
+			})
 		}
 	}
 	sortPermissions(permissions)
-	return permissions, nil
+	return permissions, grants, nil
 }
 
 func sortPermissions[P ~map[string][]string](permissions P) {
@@ -125,20 +176,50 @@ func permissionsFromRoles[P ~map[string][]string](
 	claims map[string]string,
 	rolePatterns []Pattern,
 	roles map[string]P,
-) (P, error) {
+) (P, []string, error) {
 	var resolved P
+	var roleNames []string
 	for _, rolePattern := range rolePatterns {
 		roleName, err := rolePattern.Format(claims)
 		if err != nil {
-			return nil, fmt.Errorf("format role %q: %w", rolePattern, err)
+			return nil, nil, fmt.Errorf("format role %q: %w", rolePattern, err)
 		}
 		rolePermissions, ok := roles[roleName]
 		if !ok {
-			return nil, fmt.Errorf("role %q not found", roleName)
+			return nil, nil, fmt.Errorf("role %q not found", roleName)
 		}
+		roleNames = append(roleNames, roleName)
 		mergePermissionsInto(&resolved, rolePermissions)
 	}
-	return resolved, nil
+	slices.Sort(roleNames)
+	return resolved, roleNames, nil
+}
+
+func copyPermissions[P ~map[string][]string](permissions P) map[string][]string {
+	if permissions == nil {
+		return nil
+	}
+	clone := maps.Clone(permissions)
+	for k, v := range clone {
+		clone[k] = slices.Clone(v)
+	}
+	sortPermissions(clone)
+	return clone
+}
+
+func mergeAndCopyPermissions[P ~map[string][]string](rolePermissions, directPermissions P) map[string][]string {
+	permissions := copyPermissions(rolePermissions)
+	mergePermissionsInto(&permissions, directPermissions)
+	sortPermissions(permissions)
+	return permissions
+}
+
+func sortedGrants(grantSets ...[]AppliedGrant) []AppliedGrant {
+	grants := slices.Concat(grantSets...)
+	slices.SortFunc(grants, func(a, b AppliedGrant) int {
+		return cmp.Or(cmp.Compare(string(a.Scope), string(b.Scope)), cmp.Compare(a.ID, b.ID))
+	})
+	return grants
 }
 
 func mergePermissionsInto[P ~map[string][]string](destination *P, source P) {

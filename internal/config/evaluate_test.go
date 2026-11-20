@@ -1,9 +1,12 @@
 package config
 
 import (
+	"bytes"
 	"iter"
+	"log/slog"
 	"maps"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -12,6 +15,7 @@ func claimSeq(claims map[string]any) iter.Seq2[string, any] {
 }
 
 func TestIdentify(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		config Config
@@ -23,8 +27,8 @@ func TestIdentify(t *testing.T) {
 			config: Config{
 				KnownClaims: []string{"repository_owner", "repository", "environment"},
 				Identities: []Identity{{
-					"repository_owner": mustPattern(t, "acme"),
-					"repository":       mustPattern(t, "acme/{repo}"),
+					"repository_owner": MustPattern("acme"),
+					"repository":       MustPattern("acme/{repo}"),
 				}},
 			},
 			claims: map[string]any{
@@ -44,10 +48,10 @@ func TestIdentify(t *testing.T) {
 			name: "uses first matching identity",
 			config: Config{
 				Identities: []Identity{
-					{"repository": mustPattern(t, "acme/{repo}")},
+					{"repository": MustPattern("acme/{repo}")},
 					{
-						"repository":  mustPattern(t, "acme/{project}"),
-						"environment": mustPattern(t, "harbor"),
+						"repository":  MustPattern("acme/{project}"),
+						"environment": MustPattern("harbor"),
 					},
 				},
 			},
@@ -96,6 +100,7 @@ func TestIdentify(t *testing.T) {
 }
 
 func TestIdentifyErrors(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		config Config
@@ -105,21 +110,21 @@ func TestIdentifyErrors(t *testing.T) {
 			name: "non-string known claim",
 			config: Config{
 				KnownClaims: []string{"groups"},
-				Identities:  []Identity{{"groups": mustPattern(t, "{group}")}},
+				Identities:  []Identity{{"groups": MustPattern("{group}")}},
 			},
 			claims: map[string]any{"groups": []any{"developers"}},
 		},
 		{
 			name: "missing claim",
 			config: Config{
-				Identities: []Identity{{"repository": mustPattern(t, "acme/{repo}")}},
+				Identities: []Identity{{"repository": MustPattern("acme/{repo}")}},
 			},
 			claims: map[string]any{"repository_owner": "acme"},
 		},
 		{
 			name: "pattern does not match",
 			config: Config{
-				Identities: []Identity{{"repository": mustPattern(t, "acme/{repo}")}},
+				Identities: []Identity{{"repository": MustPattern("acme/{repo}")}},
 			},
 			claims: map[string]any{"repository": "contoso/api"},
 		},
@@ -127,8 +132,8 @@ func TestIdentifyErrors(t *testing.T) {
 			name: "capture conflicts with claim",
 			config: Config{
 				Identities: []Identity{{
-					"first":  mustPattern(t, "{second}"),
-					"second": mustPattern(t, "literal"),
+					"first":  MustPattern("{second}"),
+					"second": MustPattern("literal"),
 				}},
 			},
 			claims: map[string]any{"first": "captured", "second": "literal"},
@@ -144,6 +149,7 @@ func TestIdentifyErrors(t *testing.T) {
 }
 
 func TestEvaluateSystemPermissions(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		System: System{
 			Roles: map[string]SystemPermissions{
@@ -152,7 +158,7 @@ func TestEvaluateSystemPermissions(t *testing.T) {
 			Grants: map[string]SystemGrant{
 				"create project": {
 					When:  When{"repository": "acme/bootstrap"},
-					Roles: []Pattern{mustPattern(t, "{role}")},
+					Roles: []Pattern{MustPattern("{role}")},
 					Permissions: SystemPermissions{
 						"resource-a": {"action-from-create-project-grant"},
 					},
@@ -190,9 +196,23 @@ func TestEvaluateSystemPermissions(t *testing.T) {
 	if !reflect.DeepEqual(got.SystemPermissions, want) {
 		t.Errorf("wrong system permissions\nwant: %#v\ngot:  %#v", want, got.SystemPermissions)
 	}
+	wantGrant := AppliedGrant{
+		ID:    "create project",
+		Scope: AppliedGrantSystem,
+		Roles: []string{"bootstrap"},
+		Permissions: map[string][]string{
+			"resource-a": {"action-from-bootstrap-role", "action-from-create-project-grant"},
+		},
+	}
+	if !slices.ContainsFunc(got.Grants, func(grant AppliedGrant) bool {
+		return reflect.DeepEqual(grant, wantGrant)
+	}) {
+		t.Errorf("applied grants do not contain %#v: %#v", wantGrant, got.Grants)
+	}
 }
 
 func TestEvaluateProjectPermissions(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		Projects: Projects{
 			Roles: map[string]ProjectPermissions{
@@ -204,15 +224,15 @@ func TestEvaluateProjectPermissions(t *testing.T) {
 			Grants: map[string]ProjectGrant{
 				"own project": {
 					When:     When{"environment": "harbor"},
-					Projects: []Pattern{mustPattern(t, "{repository_owner}-{repo}")},
-					Roles:    []Pattern{mustPattern(t, "{role}")},
+					Projects: []Pattern{MustPattern("{repository_owner}-{repo}")},
+					Roles:    []Pattern{MustPattern("{role}")},
 					Permissions: ProjectPermissions{
 						"resource-a": {"action-from-own-project-grant"},
 					},
 				},
 				"shared project": {
 					When:     When{"repository": "acme/api"},
-					Projects: []Pattern{mustPattern(t, "{repository_owner}-{repo}")},
+					Projects: []Pattern{MustPattern("{repository_owner}-{repo}")},
 					Permissions: ProjectPermissions{
 						"resource-a": {"action-from-shared-project-grant"},
 						"resource-c": {"shared-action"},
@@ -220,7 +240,7 @@ func TestEvaluateProjectPermissions(t *testing.T) {
 				},
 				"unused": {
 					When:        When{"environment": "production"},
-					Projects:    []Pattern{mustPattern(t, "unrelated")},
+					Projects:    []Pattern{MustPattern("unrelated")},
 					Permissions: ProjectPermissions{"resource-a": {"action-from-unused"}},
 				},
 			},
@@ -251,9 +271,25 @@ func TestEvaluateProjectPermissions(t *testing.T) {
 	if !reflect.DeepEqual(got.ProjectPermissions, want) {
 		t.Errorf("wrong project permissions\nwant: %#v\ngot:  %#v", want, got.ProjectPermissions)
 	}
+	wantGrant := AppliedGrant{
+		ID:       "own project",
+		Scope:    AppliedGrantProject,
+		Projects: []string{"acme-api"},
+		Roles:    []string{"pull"},
+		Permissions: map[string][]string{
+			"resource-a": {"action-from-own-project-grant", "action-from-pull-role"},
+			"resource-b": {"shared-action"},
+		},
+	}
+	if !slices.ContainsFunc(got.Grants, func(grant AppliedGrant) bool {
+		return reflect.DeepEqual(grant, wantGrant)
+	}) {
+		t.Errorf("applied grants do not contain %#v: %#v", wantGrant, got.Grants)
+	}
 }
 
 func TestEvaluateAllProjectPermissions(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		Projects: Projects{
 			Roles: map[string]ProjectPermissions{
@@ -264,7 +300,7 @@ func TestEvaluateAllProjectPermissions(t *testing.T) {
 			Grants: map[string]AllProjectGrant{
 				"scan": {
 					When:  When{"repository": "acme/scanner"},
-					Roles: []Pattern{mustPattern(t, "{role}")},
+					Roles: []Pattern{MustPattern("{role}")},
 					Permissions: ProjectPermissions{
 						"resource-a": {"action-from-scan-grant"},
 					},
@@ -298,9 +334,23 @@ func TestEvaluateAllProjectPermissions(t *testing.T) {
 	if !reflect.DeepEqual(got.AllProjectPermissions, want) {
 		t.Errorf("wrong all-project permissions\nwant: %#v\ngot:  %#v", want, got.AllProjectPermissions)
 	}
+	wantGrant := AppliedGrant{
+		ID:    "scan",
+		Scope: AppliedGrantAllProject,
+		Roles: []string{"scan"},
+		Permissions: map[string][]string{
+			"resource-a": {"action-from-scan-grant", "action-from-scan-role"},
+		},
+	}
+	if !slices.ContainsFunc(got.Grants, func(grant AppliedGrant) bool {
+		return reflect.DeepEqual(grant, wantGrant)
+	}) {
+		t.Errorf("applied grants do not contain %#v: %#v", wantGrant, got.Grants)
+	}
 }
 
 func TestEvaluateProjectPermissionsError(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		config Config
@@ -311,8 +361,8 @@ func TestEvaluateProjectPermissionsError(t *testing.T) {
 			config: Config{
 				Projects: Projects{Grants: map[string]ProjectGrant{
 					"unknown role": {
-						Projects: []Pattern{mustPattern(t, "acme")},
-						Roles:    []Pattern{mustPattern(t, "missing")},
+						Projects: []Pattern{MustPattern("acme")},
+						Roles:    []Pattern{MustPattern("missing")},
 					},
 				}},
 			},
@@ -322,7 +372,7 @@ func TestEvaluateProjectPermissionsError(t *testing.T) {
 			config: Config{
 				Projects: Projects{Grants: map[string]ProjectGrant{
 					"missing capture": {
-						Projects: []Pattern{mustPattern(t, "{project}")},
+						Projects: []Pattern{MustPattern("{project}")},
 					},
 				}},
 			},
@@ -333,6 +383,51 @@ func TestEvaluateProjectPermissionsError(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			if _, err := test.config.Evaluate(test.claims); err == nil {
 				t.Fatal("Evaluate() returned no error")
+			}
+		})
+	}
+}
+
+func TestAppliedGrantLogSnapshot(t *testing.T) {
+	t.Parallel()
+	grant := AppliedGrant{
+		ID:       "own-project",
+		Scope:    AppliedGrantProject,
+		Projects: []string{"acme-api"},
+		Roles:    []string{"pull", "push"},
+		Permissions: map[string][]string{
+			"repository": {"pull", "push"},
+		},
+	}
+	options := &slog.HandlerOptions{ReplaceAttr: func(_ []string, attr slog.Attr) slog.Attr {
+		if attr.Key == slog.TimeKey {
+			return slog.Attr{}
+		}
+		return attr
+	}}
+	tests := []struct {
+		name    string
+		handler func(*bytes.Buffer) slog.Handler
+		want    string
+	}{
+		{
+			name:    "json",
+			handler: func(output *bytes.Buffer) slog.Handler { return slog.NewJSONHandler(output, options) },
+			want: `{"level":"INFO","msg":"robot created","grants":[{"id":"own-project","scope":"project","projects":["acme-api"],"roles":["pull","push"],"permissions":{"repository":["pull","push"]}}]}
+`,
+		},
+		{
+			name:    "text",
+			handler: func(output *bytes.Buffer) slog.Handler { return slog.NewTextHandler(output, options) },
+			want:    "level=INFO msg=\"robot created\" grants=\"[{id: own-project, scope: project, projects: [acme-api], roles: [pull, push], permissions: {repository: [pull, push]}}]\"\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var output bytes.Buffer
+			slog.New(test.handler(&output)).InfoContext(t.Context(), "robot created", "grants", []AppliedGrant{grant})
+			if got := output.String(); got != test.want {
+				t.Errorf("wrong log output\nwant: %s\ngot:  %s", test.want, got)
 			}
 		})
 	}

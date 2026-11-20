@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/RiskIdent/harbor-roboteer/internal/config"
 	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
-	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/lestrrat-go/jwx/v4/jwt"
 )
 
@@ -32,15 +32,6 @@ const errInvalidDeleteCombo = "invalid robot ID and delete token combination"
 
 type postRobotRequest struct {
 	Name string `json:"name"`
-	// project comes from the caller until the permission config (#38) lands
-	// TODO: remove once project permissions are resolved from the token's claims
-	Project string `json:"project"`
-}
-
-func (r postRobotRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Project, validation.Required),
-	)
 }
 
 type robotCredentials struct {
@@ -54,9 +45,16 @@ type postRobotResponse struct {
 	DeleteToken string           `json:"deleteToken"`
 }
 
-var unmonitoredPaths = []string{
-	"/api/v1/health",
-}
+var (
+	unmonitoredPaths = []string{
+		"/api/v1/health",
+	}
+
+	errIdentifyClaims = errors.New("identify claims")
+	errEvaluateConfig = errors.New("evaluate permissions")
+
+	now = time.Now // overridden in tests
+)
 
 func (s *Server) registerHandlers() {
 	s.registerV1()
@@ -76,8 +74,8 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	tok, err := jwt.ParseRequest(r, s.jwtOpts...)
 	if err != nil {
-		s.log.ErrorContext(r.Context(), "parse token")
-		s.log.DebugContext(r.Context(), "reject token", slog.Any("error", err))
+		s.log.ErrorContext(ctx, "parse token")
+		s.log.DebugContext(ctx, "reject token", slog.Any("error", err))
 		w.Header().Set("WWW-Authenticate", "Bearer")
 		http.Error(w, "invalid or missing token", http.StatusUnauthorized)
 		return
@@ -97,46 +95,55 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "body must be valid JSON", http.StatusBadRequest)
 		return
 	}
-	if err := req.Validate(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
 	sub, _ := tok.Subject()
-	name := req.Name
+	name := cmp.Or(req.Name, sub)
 	if name == "" {
-		name = sub
-	}
-	if name == "" {
-		s.log.ErrorContext(r.Context(), "token has no sub claim and no name was provided in the request body")
+		s.log.ErrorContext(ctx, "token has no sub claim and no name was provided in the request body")
 		http.Error(w, "token has no sub claim, set name in the request body", http.StatusBadRequest)
 		return
 	}
 
+	cfg := s.configWatcher.Config()
 	deleteToken := rand.Text()
-	hash := sha256.Sum256([]byte(deleteToken))
-
-	cfg := s.configWatcher.Config() // TODO: use config in roles mapping
-	/* TODO: remove test log */ s.log.DebugContext(ctx, "config", slog.Any("knownClaims", cfg.KnownClaims))
-
-	created, err := s.harbor.CreateRobot(r.Context(), harbor.RobotCreate{
-		NameBase:    name,
-		Project:     req.Project,
-		EarlyExpiry: time.Now().Add(time.Hour), // TODO: probably want to template this
-		Description: fmt.Sprintf("Robot account for OIDC user %q", cmp.Or(sub, "(unknown JWT sub)")),
-		DeleteToken: deleteTokenPrefix + hex.EncodeToString(hash[:]),
-		ManagedBy:   "harbor-roboteer " + s.version,
+	robot, grants, err := buildRobotCreate(robotCreateOptions{
+		Config:      cfg,
+		Token:       tok,
+		Subject:     sub,
+		Name:        name,
+		DeleteToken: deleteToken,
+		Version:     s.version,
 	})
+	if errors.Is(err, errIdentifyClaims) {
+		s.log.ErrorContext(ctx, "identify claims", slog.Any("error", err))
+		http.Error(w, "incompatible identity claims", http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		s.log.ErrorContext(ctx, "build robot create request", slog.Any("error", err))
+		http.Error(w, "failed to evaluate permissions from config", http.StatusInternalServerError)
+		return
+	}
+	if len(robot.RobotPermissions()) == 0 {
+		http.Error(w, "no permissions granted by configuration", http.StatusForbidden)
+		return
+	}
+	created, err := s.harbor.CreateRobot(ctx, robot)
 	s.countRobotOp("create", err)
 	if errors.Is(err, harbor.ErrRobotExists) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
 	if err != nil {
-		s.log.ErrorContext(r.Context(), "create robot account", slog.Any("error", err))
+		s.log.ErrorContext(ctx, "create robot account", slog.Any("error", err))
 		http.Error(w, "failed to create robot account in Harbor", http.StatusBadGateway)
 		return
 	}
+	s.log.InfoContext(ctx, "created robot account",
+		slog.String("sub", sub),
+		slog.Int64("robotId", created.ID),
+		slog.String("robotName", created.Name),
+		slog.Any("grants", grants),
+	)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(postRobotResponse{
@@ -149,7 +156,51 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type robotCreateOptions struct {
+	Config      *config.Config
+	Token       jwt.Token
+	Subject     string
+	Name        string
+	DeleteToken string
+	Version     string
+}
+
+func buildRobotCreate(options robotCreateOptions) (harbor.RobotCreate, []config.AppliedGrant, error) {
+	claims, err := options.Config.Identify(options.Token.Claims())
+	if err != nil {
+		return harbor.RobotCreate{}, nil, fmt.Errorf("%w: %w", errIdentifyClaims, err)
+	}
+	permissions, err := options.Config.Evaluate(claims)
+	if err != nil {
+		return harbor.RobotCreate{}, nil, fmt.Errorf("%w: %w", errEvaluateConfig, err)
+	}
+
+	hash := sha256.Sum256([]byte(options.DeleteToken))
+	return harbor.RobotCreate{
+		NameBase:              options.Name,
+		ProjectPermissions:    harborProjectPermissions(permissions.ProjectPermissions),
+		AllProjectPermissions: harbor.Permissions(permissions.AllProjectPermissions),
+		SystemPermissions:     harbor.Permissions(permissions.SystemPermissions),
+		EarlyExpiry:           now().Add(time.Hour), // TODO: probably want to template this
+		Description:           fmt.Sprintf("Robot account for OIDC user %q", cmp.Or(options.Subject, "(unknown JWT sub)")),
+		DeleteToken:           deleteTokenPrefix + hex.EncodeToString(hash[:]),
+		ManagedBy:             "harbor-roboteer " + options.Version,
+	}, permissions.Grants, nil
+}
+
+func harborProjectPermissions(permissions map[string]config.ProjectPermissions) map[string]harbor.Permissions {
+	if permissions == nil {
+		return nil
+	}
+	result := make(map[string]harbor.Permissions, len(permissions))
+	for project, projectPermissions := range permissions {
+		result[project] = harbor.Permissions(projectPermissions)
+	}
+	return result
+}
+
 func (s *Server) deleteRobot(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	token, ok := bearerToken(r)
 	if !ok {
 		w.Header().Set("WWW-Authenticate", "Bearer")
@@ -163,13 +214,13 @@ func (s *Server) deleteRobot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rb, err := s.harbor.GetRobotByID(r.Context(), robotID)
+	rb, err := s.harbor.GetRobotByID(ctx, robotID)
 	if errors.Is(err, harbor.ErrRobotNotFound) {
 		http.Error(w, errInvalidDeleteCombo, http.StatusForbidden)
 		return
 	}
 	if err != nil {
-		s.log.ErrorContext(r.Context(), "get robot account", slog.Any("error", err))
+		s.log.ErrorContext(ctx, "get robot account", slog.Any("error", err))
 		http.Error(w, "failed to get robot account from Harbor", http.StatusBadGateway)
 		return
 	}
@@ -181,14 +232,14 @@ func (s *Server) deleteRobot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.harbor.DeleteRobot(r.Context(), robotID)
+	err = s.harbor.DeleteRobot(ctx, robotID)
 	s.countRobotOp("delete", err)
 	if errors.Is(err, harbor.ErrRobotNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 	if err != nil {
-		s.log.ErrorContext(r.Context(), "delete robot account", slog.Any("error", err))
+		s.log.ErrorContext(ctx, "delete robot account", slog.Any("error", err))
 		http.Error(w, "failed to delete robot account in Harbor", http.StatusBadGateway)
 		return
 	}
