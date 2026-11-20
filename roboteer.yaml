@@ -5,12 +5,13 @@ x-my-extensions: extensions are allowed, see https://docs.docker.com/reference/c
 known_claims: [repository, repository_owner, environment]
 
 # Who may exchange a token at all. A token must match every claim of at least one identity.
+# First valid match is used. Structure your identities from most-specific to least-specific.
 identities:
-  - { repository_owner: acme, repository: "acme/{repo}" }
   - { repository_owner: acme, repository: "acme/{repo}", environment: harbor }
   - { repository: acme/deploy-tools, environment: harbor }
   - { repository: acme/harbor-bootstrap, environment: harbor }
   - { repository: acme/image-scanner, environment: harbor }
+  - { repository_owner: acme, repository: "acme/{repo}" }
 
 # Project permissions. All matching grants add up; nothing denies.
 projects:

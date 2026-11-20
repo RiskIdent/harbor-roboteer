@@ -2,6 +2,8 @@ package config
 
 import (
 	"errors"
+	"iter"
+	"slices"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
@@ -16,6 +18,31 @@ type Config struct {
 	AllProjects AllProjects `yaml:"all_projects"`
 
 	System System `yaml:"system"`
+}
+
+// EffectiveIdentities returns configured identities, or the grant conditions
+// as identities when no explicit identities are configured.
+func (c *Config) EffectiveIdentities() iter.Seq[Identity] {
+	if len(c.Identities) > 0 {
+		return slices.Values(c.Identities)
+	}
+	return func(yield func(Identity) bool) {
+		for _, grant := range c.Projects.Grants {
+			if !yield(grant.When.AsIdentity()) {
+				return
+			}
+		}
+		for _, grant := range c.AllProjects.Grants {
+			if !yield(grant.When.AsIdentity()) {
+				return
+			}
+		}
+		for _, grant := range c.System.Grants {
+			if !yield(grant.When.AsIdentity()) {
+				return
+			}
+		}
+	}
 }
 
 // Validate checks the config for semantic errors.
@@ -36,6 +63,39 @@ func (c *Config) Validate() error {
 }
 
 type Identity map[string]Pattern
+
+// Match reports whether all identity patterns match the claims and returns
+// the captured placeholder values.
+func (id Identity) Match(claims map[string]string) (map[string]string, bool) {
+	var capturedClaims map[string]string
+	for claimName, claimPattern := range id {
+		claimValue, ok := claims[claimName]
+		if !ok {
+			return nil, false
+		}
+		claimCaptures, ok := claimPattern.Match(claimValue)
+		if !ok {
+			return nil, false
+		}
+		for captureName, captureValue := range claimCaptures {
+			if existingValue, ok := capturedClaims[captureName]; ok && existingValue != captureValue {
+				// if identity has e.g "sub={foo}" and "repository={foo}",
+				// then require that those two captures have same value
+				return nil, false
+			}
+			if capturedClaims == nil {
+				// size may be higher than what we need, as patterns may reuse captureNames
+				size := 0
+				for _, claimPattern := range id {
+					size += claimPattern.CaptureCount()
+				}
+				capturedClaims = make(map[string]string, size)
+			}
+			capturedClaims[captureName] = captureValue
+		}
+	}
+	return capturedClaims, true
+}
 
 // AvailableNames returns the claim names and capture names of the identity.
 func (id Identity) AvailableNames() map[string]bool {
@@ -177,6 +237,23 @@ func (g SystemGrant) Validate(vc validationContext) error {
 }
 
 type When map[string]string
+
+func (w When) MatchesClaims(claims map[string]string) bool {
+	for claimName, expectedValue := range w {
+		if claims[claimName] != expectedValue {
+			return false
+		}
+	}
+	return true
+}
+
+func (w When) AsIdentity() Identity {
+	identity := make(Identity, len(w))
+	for claim, value := range w {
+		identity[claim] = Pattern{{Text: value}}
+	}
+	return identity
+}
 
 // MatchesIdentity reports whether the identity has every claim in the [When],
 // with patterns matching the values.
