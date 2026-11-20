@@ -5,6 +5,7 @@ go 1.27.4
 require (
 	github.com/go-logr/logr v1.4.4
 	github.com/go-openapi/runtime v0.33.4
+	github.com/go-openapi/strfmt v0.27.4
 	github.com/go-ozzo/ozzo-validation/v4 v4.5.0
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/goharbor/go-client v0.213.1
@@ -43,7 +44,6 @@ require (
 	github.com/go-openapi/loads v0.25.3 // indirect
 	github.com/go-openapi/runtime/server-middleware v0.33.4 // indirect
 	github.com/go-openapi/spec v1.0.1 // indirect
-	github.com/go-openapi/strfmt v0.27.4 // indirect
 	github.com/go-openapi/swag v0.29.2 // indirect
 	github.com/go-openapi/swag/cmdutils v0.29.2 // indirect
 	github.com/go-openapi/swag/conv v0.29.2 // indirect
