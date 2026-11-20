@@ -29,8 +29,10 @@ func TestPermissionsHarborAccess(t *testing.T) {
 
 func TestRobotPermissions(t *testing.T) {
 	got := (RobotCreate{
-		SystemPermissions:     Permissions{"project": {"create"}},
-		AllProjectPermissions: Permissions{"repository": {"list"}},
+		SystemPermissions: Permissions{"project": {"create"}},
+		AllProjectPermissions: Permissions{
+			"repository": {"list"},
+		},
 		ProjectPermissions: map[string]Permissions{
 			"zeta":  {"repository": {"push"}},
 			"alpha": {"repository": {"pull"}},
@@ -51,19 +53,25 @@ func TestRobotPermissions(t *testing.T) {
 		{kind: "project", namespace: "alpha", resource: "repository", action: "pull"},
 		{kind: "project", namespace: "zeta", resource: "repository", action: "push"},
 	}
-	for index, permission := range got {
-		if permission.Kind != want[index].kind || permission.Namespace != want[index].namespace {
-			t.Errorf("permission %d = %q/%q, want %q/%q",
-				index, permission.Kind, permission.Namespace, want[index].kind, want[index].namespace)
+	for i, permission := range got {
+		if permission.Kind != want[i].kind {
+			t.Errorf("permission %d kind = %q, want %q", i, permission.Kind, want[i].kind)
+		}
+		if permission.Namespace != want[i].namespace {
+			t.Errorf("permission %d namespace = %q, want %q", i, permission.Namespace, want[i].namespace)
 		}
 		if len(permission.Access) != 1 {
-			t.Errorf("permission %d access = %d, want 1", index, len(permission.Access))
+			t.Errorf("permission %d access = %d, want 1", i, len(permission.Access))
 			continue
 		}
-		if permission.Access[0].Resource != want[index].resource || permission.Access[0].Action != want[index].action {
+		if permission.Access[0].Resource != want[i].resource || permission.Access[0].Action != want[i].action {
 			t.Errorf("permission %d access = %s:%s, want %s:%s",
-				index, permission.Access[0].Resource, permission.Access[0].Action,
-				want[index].resource, want[index].action)
+				i,
+				permission.Access[0].Resource,
+				permission.Access[0].Action,
+				want[i].resource,
+				want[i].action,
+			)
 		}
 	}
 }

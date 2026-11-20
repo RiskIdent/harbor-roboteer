@@ -11,7 +11,10 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// Permissions is a map of "resource" -> "actions".
+// Permissions is a map of "resource" -> "action". For example:
+//
+//	Permissions{"repository": {"pull", "push"}}
+//	// => [{Resource="repository", Action="pull"}, {Resource="repository", Action="push"}]
 type Permissions map[string][]string
 
 func (p Permissions) HarborAccess() []*models.Access {
@@ -33,21 +36,23 @@ func (p Permissions) HarborAccess() []*models.Access {
 
 type RobotCreate struct {
 	NameBase string
-	Project  string
 	RobotMetadata
 
-	ProjectPermissions    map[string]Permissions
+	// Map of project name to set of permissions. Nil or empty means no project-level permissions.
+	ProjectPermissions map[string]Permissions
+	// Permissions applied to all projects. Nil or empty means no all-project permissions.
 	AllProjectPermissions Permissions
-	SystemPermissions     Permissions
+	// System level permissions. Nil or empty means no system-level permissions.
+	SystemPermissions Permissions
 }
 
 func (c RobotCreate) RobotPermissions() []*models.RobotPermission {
 	size := len(c.ProjectPermissions)
 	if len(c.AllProjectPermissions) > 0 {
-		size++
+		size += 1
 	}
 	if len(c.SystemPermissions) > 0 {
-		size++
+		size += 1
 	}
 	permissions := make([]*models.RobotPermission, 0, size)
 	if len(c.SystemPermissions) > 0 {
