@@ -95,10 +95,8 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "body must be valid JSON", http.StatusBadRequest)
 		return
 	}
-	name := req.Name
-	if name == "" {
-		name, _ = tok.Subject()
-	}
+	sub, _ := tok.Subject()
+	name := cmp.Or(req.Name, sub)
 	if name == "" {
 		s.log.ErrorContext(ctx, "token has no sub claim and no name was provided in the request body")
 		http.Error(w, "token has no sub claim, set name in the request body", http.StatusBadRequest)
@@ -110,6 +108,7 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	robot, grants, err := buildRobotCreate(robotCreateOptions{
 		Config:      cfg,
 		Token:       tok,
+		Subject:     sub,
 		Name:        name,
 		DeleteToken: deleteToken,
 		Version:     s.version,
@@ -136,6 +135,7 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.log.InfoContext(ctx, "created robot account",
+		slog.String("sub", sub),
 		slog.Int64("robotId", created.ID),
 		slog.String("robotName", created.Name),
 		slog.Any("grants", grants),
@@ -155,6 +155,7 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 type robotCreateOptions struct {
 	Config      *config.Config
 	Token       jwt.Token
+	Subject     string
 	Name        string
 	DeleteToken string
 	Version     string
@@ -170,7 +171,6 @@ func buildRobotCreate(options robotCreateOptions) (harbor.RobotCreate, []config.
 		return harbor.RobotCreate{}, nil, fmt.Errorf("%w: %w", errEvaluateConfig, err)
 	}
 
-	sub, _ := options.Token.Subject()
 	hash := sha256.Sum256([]byte(options.DeleteToken))
 	return harbor.RobotCreate{
 		NameBase:              options.Name,
@@ -178,7 +178,7 @@ func buildRobotCreate(options robotCreateOptions) (harbor.RobotCreate, []config.
 		AllProjectPermissions: harbor.Permissions(permissions.AllProjectPermissions),
 		SystemPermissions:     harbor.Permissions(permissions.SystemPermissions),
 		EarlyExpiry:           now().Add(time.Hour), // TODO: probably want to template this
-		Description:           fmt.Sprintf("Robot account for OIDC user %q", cmp.Or(sub, "(unknown JWT sub)")),
+		Description:           fmt.Sprintf("Robot account for OIDC user %q", cmp.Or(options.Subject, "(unknown JWT sub)")),
 		DeleteToken:           deleteTokenPrefix + hex.EncodeToString(hash[:]),
 		ManagedBy:             "harbor-roboteer " + options.Version,
 	}, permissions.Grants, nil

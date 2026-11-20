@@ -63,6 +63,7 @@ func TestBuildRobotCreate(t *testing.T) {
 	got, grants, err := buildRobotCreate(robotCreateOptions{
 		Config:      cfg,
 		Token:       token,
+		Subject:     "oidc-user",
 		Name:        "requested-name",
 		DeleteToken: "delete-token",
 		Version:     "v1.2.3",
@@ -96,7 +97,7 @@ func TestBuildRobotCreate(t *testing.T) {
 			Scope:       config.AppliedGrantProject,
 			Projects:    []string{"api"},
 			Roles:       []string{"pull"},
-			Permissions: map[string][]string{"resource": {"project-action"}},
+			Permissions: map[string][]string{"resource": {"project-action", "role-action"}},
 		},
 		{
 			ID:          "system",

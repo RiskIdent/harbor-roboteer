@@ -98,7 +98,7 @@ func (c *Config) evaluateProjects(claims map[string]string) (map[string]ProjectP
 			ID:          grantID,
 			Scope:       AppliedGrantProject,
 			Roles:       roleNames,
-			Permissions: copyPermissions(grant.Permissions),
+			Permissions: copyPermissions(permissions),
 		}
 		for _, projectPattern := range grant.Projects {
 			project, err := projectPattern.Format(claims)
@@ -135,7 +135,7 @@ func (c *Config) evaluateAllProjects(claims map[string]string) (ProjectPermissio
 				ID:          grantID,
 				Scope:       AppliedGrantAllProject,
 				Roles:       roleNames,
-				Permissions: copyPermissions(grant.Permissions),
+				Permissions: mergeAndCopyPermissions(rolePermissions, grant.Permissions),
 			})
 		}
 	}
@@ -158,7 +158,7 @@ func (c *Config) evaluateSystem(claims map[string]string) (SystemPermissions, []
 				ID:          grantID,
 				Scope:       AppliedGrantSystem,
 				Roles:       roleNames,
-				Permissions: copyPermissions(grant.Permissions),
+				Permissions: mergeAndCopyPermissions(rolePermissions, grant.Permissions),
 			})
 		}
 	}
@@ -205,6 +205,13 @@ func copyPermissions[P ~map[string][]string](permissions P) map[string][]string 
 	}
 	sortPermissions(clone)
 	return clone
+}
+
+func mergeAndCopyPermissions[P ~map[string][]string](rolePermissions, directPermissions P) map[string][]string {
+	permissions := copyPermissions(rolePermissions)
+	mergePermissionsInto(&permissions, directPermissions)
+	sortPermissions(permissions)
+	return permissions
 }
 
 func sortedGrants(grantSets ...[]AppliedGrant) []AppliedGrant {

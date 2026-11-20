@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"maps"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -195,6 +196,19 @@ func TestEvaluateSystemPermissions(t *testing.T) {
 	if !reflect.DeepEqual(got.SystemPermissions, want) {
 		t.Errorf("wrong system permissions\nwant: %#v\ngot:  %#v", want, got.SystemPermissions)
 	}
+	wantGrant := AppliedGrant{
+		ID:    "create project",
+		Scope: AppliedGrantSystem,
+		Roles: []string{"bootstrap"},
+		Permissions: map[string][]string{
+			"resource-a": {"action-from-bootstrap-role", "action-from-create-project-grant"},
+		},
+	}
+	if !slices.ContainsFunc(got.Grants, func(grant AppliedGrant) bool {
+		return reflect.DeepEqual(grant, wantGrant)
+	}) {
+		t.Errorf("applied grants do not contain %#v: %#v", wantGrant, got.Grants)
+	}
 }
 
 func TestEvaluateProjectPermissions(t *testing.T) {
@@ -257,6 +271,21 @@ func TestEvaluateProjectPermissions(t *testing.T) {
 	if !reflect.DeepEqual(got.ProjectPermissions, want) {
 		t.Errorf("wrong project permissions\nwant: %#v\ngot:  %#v", want, got.ProjectPermissions)
 	}
+	wantGrant := AppliedGrant{
+		ID:       "own project",
+		Scope:    AppliedGrantProject,
+		Projects: []string{"acme-api"},
+		Roles:    []string{"pull"},
+		Permissions: map[string][]string{
+			"resource-a": {"action-from-own-project-grant", "action-from-pull-role"},
+			"resource-b": {"shared-action"},
+		},
+	}
+	if !slices.ContainsFunc(got.Grants, func(grant AppliedGrant) bool {
+		return reflect.DeepEqual(grant, wantGrant)
+	}) {
+		t.Errorf("applied grants do not contain %#v: %#v", wantGrant, got.Grants)
+	}
 }
 
 func TestEvaluateAllProjectPermissions(t *testing.T) {
@@ -304,6 +333,19 @@ func TestEvaluateAllProjectPermissions(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got.AllProjectPermissions, want) {
 		t.Errorf("wrong all-project permissions\nwant: %#v\ngot:  %#v", want, got.AllProjectPermissions)
+	}
+	wantGrant := AppliedGrant{
+		ID:    "scan",
+		Scope: AppliedGrantAllProject,
+		Roles: []string{"scan"},
+		Permissions: map[string][]string{
+			"resource-a": {"action-from-scan-grant", "action-from-scan-role"},
+		},
+	}
+	if !slices.ContainsFunc(got.Grants, func(grant AppliedGrant) bool {
+		return reflect.DeepEqual(grant, wantGrant)
+	}) {
+		t.Errorf("applied grants do not contain %#v: %#v", wantGrant, got.Grants)
 	}
 }
 
