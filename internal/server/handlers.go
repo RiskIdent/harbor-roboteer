@@ -123,6 +123,10 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to evaluate permissions from config", http.StatusInternalServerError)
 		return
 	}
+	if len(robot.RobotPermissions()) == 0 {
+		http.Error(w, "no permissions granted by configuration", http.StatusForbidden)
+		return
+	}
 	created, err := s.harbor.CreateRobot(ctx, robot)
 	s.countRobotOp("create", err)
 	if errors.Is(err, harbor.ErrRobotExists) {
