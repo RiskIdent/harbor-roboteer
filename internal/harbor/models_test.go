@@ -48,7 +48,7 @@ func TestRobotPermissions(t *testing.T) {
 		resource  string
 		action    string
 	}{
-		{kind: "system", resource: "project", action: "create"},
+		{kind: "system", namespace: "/", resource: "project", action: "create"},
 		{kind: "project", namespace: "*", resource: "repository", action: "list"},
 		{kind: "project", namespace: "alpha", resource: "repository", action: "pull"},
 		{kind: "project", namespace: "zeta", resource: "repository", action: "push"},
