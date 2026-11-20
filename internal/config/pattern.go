@@ -55,6 +55,15 @@ func ParsePattern(s string) (Pattern, error) {
 	return parser.pattern, nil
 }
 
+// MustPattern parses s and panics if it is invalid.
+func MustPattern(s string) Pattern {
+	pattern, err := ParsePattern(s)
+	if err != nil {
+		panic(err)
+	}
+	return pattern
+}
+
 type patternParser struct {
 	pattern Pattern
 	plain   strings.Builder

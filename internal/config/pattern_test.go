@@ -7,6 +7,7 @@ import (
 )
 
 func TestParsePattern(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		input string
@@ -58,6 +59,7 @@ func TestParsePattern(t *testing.T) {
 }
 
 func TestParsePattern_Error(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		input string
@@ -119,6 +121,7 @@ func TestParsePattern_Error(t *testing.T) {
 }
 
 func TestPatternFormat(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		pattern Pattern
@@ -173,6 +176,7 @@ func TestPatternFormat(t *testing.T) {
 }
 
 func TestPatternFormat_error(t *testing.T) {
+	t.Parallel()
 	pattern := Pattern{{"foo", true}}
 	s, err := pattern.Format(map[string]string{"bar": "unused"})
 	if err == nil {
@@ -181,6 +185,7 @@ func TestPatternFormat_error(t *testing.T) {
 }
 
 func TestPatternMatch(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		pattern Pattern
@@ -275,6 +280,7 @@ func TestPatternMatch(t *testing.T) {
 }
 
 func TestPatternCanFormat(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		pattern string
 		s       string
@@ -302,7 +308,8 @@ func TestPatternCanFormat(t *testing.T) {
 }
 
 func TestPatternCanFormat_falsePositive(t *testing.T) {
-	pattern := mustPattern(t, "{env}-pull")
+	t.Parallel()
+	pattern := MustPattern("{env}-pull")
 
 	// known false-positive, acceptable for our use-case:
 	// as an identity, "a-pull" can never be captured, as Match splits at the first "-pull",
@@ -316,6 +323,7 @@ func TestPatternCanFormat_falsePositive(t *testing.T) {
 }
 
 func TestPatternString(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		pattern Pattern
@@ -363,6 +371,7 @@ func TestPatternString(t *testing.T) {
 }
 
 func TestPatternValidate_emptyPlainText(t *testing.T) {
+	t.Parallel()
 	err := Pattern{{"", false}}.Validate()
 	if !errors.Is(err, ErrPatternEmptyPlainText) {
 		t.Errorf("wrong error\nwant: %q\ngot:  %q", ErrPatternEmptyPlainText, err)
@@ -370,6 +379,7 @@ func TestPatternValidate_emptyPlainText(t *testing.T) {
 }
 
 func TestPatternValidate_adjacentPlain(t *testing.T) {
+	t.Parallel()
 	err := Pattern{{"foo", false}, {"bar", false}}.Validate()
 	if !errors.Is(err, ErrPatternAdjacentPlain) {
 		t.Errorf("wrong error\nwant: %q\ngot:  %q", ErrPatternAdjacentPlain, err)

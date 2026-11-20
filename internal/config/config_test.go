@@ -7,16 +7,8 @@ import (
 	"testing"
 )
 
-func mustPattern(t *testing.T, s string) Pattern {
-	t.Helper()
-	p, err := ParsePattern(s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return p
-}
-
 func TestConfigValidate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		cfg     func(t *testing.T) Config
@@ -28,15 +20,15 @@ func TestConfigValidate(t *testing.T) {
 				return Config{
 					KnownClaims: []string{"repository", "environment"},
 					Identities: []Identity{{
-						"repository":  mustPattern(t, "acme/{repo}"),
-						"environment": mustPattern(t, "harbor"),
+						"repository":  MustPattern("acme/{repo}"),
+						"environment": MustPattern("harbor"),
 					}},
 					Projects: Projects{
 						Roles: map[string]ProjectPermissions{"pull": {"repository": {"pull"}}},
 						Grants: map[string]ProjectGrant{"g": {
 							When:     When{"repository": "acme/foo", "environment": "harbor"},
-							Projects: []Pattern{mustPattern(t, "{repo}")},
-							Roles:    []Pattern{mustPattern(t, "pull")},
+							Projects: []Pattern{MustPattern("{repo}")},
+							Roles:    []Pattern{MustPattern("pull")},
 						}},
 					},
 				}
@@ -47,7 +39,7 @@ func TestConfigValidate(t *testing.T) {
 			cfg: func(t *testing.T) Config {
 				return Config{
 					KnownClaims: []string{"repository", "environment"},
-					Identities:  []Identity{{"repo": mustPattern(t, "x")}},
+					Identities:  []Identity{{"repo": MustPattern("x")}},
 				}
 			},
 			wantErr: "not listed in known_claims",
@@ -56,10 +48,10 @@ func TestConfigValidate(t *testing.T) {
 			name: "unknown role",
 			cfg: func(t *testing.T) Config {
 				return Config{
-					Identities: []Identity{{"a": mustPattern(t, "x")}},
+					Identities: []Identity{{"a": MustPattern("x")}},
 					Projects: Projects{Grants: map[string]ProjectGrant{"g": {
-						Projects: []Pattern{mustPattern(t, "p")},
-						Roles:    []Pattern{mustPattern(t, "nope")},
+						Projects: []Pattern{MustPattern("p")},
+						Roles:    []Pattern{MustPattern("nope")},
 					}}},
 				}
 			},
@@ -78,9 +70,9 @@ func TestConfigValidate(t *testing.T) {
 			name: "all_projects unknown role",
 			cfg: func(t *testing.T) Config {
 				return Config{
-					Identities: []Identity{{"a": mustPattern(t, "x")}},
+					Identities: []Identity{{"a": MustPattern("x")}},
 					AllProjects: AllProjects{Grants: map[string]AllProjectGrant{"g": {
-						Roles: []Pattern{mustPattern(t, "nope")},
+						Roles: []Pattern{MustPattern("nope")},
 					}}},
 				}
 			},
@@ -90,9 +82,9 @@ func TestConfigValidate(t *testing.T) {
 			name: "grant placeholder not in identities",
 			cfg: func(t *testing.T) Config {
 				return Config{
-					Identities: []Identity{{"a": mustPattern(t, "x-{repo}")}},
+					Identities: []Identity{{"a": MustPattern("x-{repo}")}},
 					Projects: Projects{Grants: map[string]ProjectGrant{"g": {
-						Projects:    []Pattern{mustPattern(t, "{owner}")},
+						Projects:    []Pattern{MustPattern("{owner}")},
 						Permissions: ProjectPermissions{"repository": {"pull"}},
 					}}},
 				}
@@ -104,11 +96,11 @@ func TestConfigValidate(t *testing.T) {
 			cfg: func(t *testing.T) Config {
 				return Config{
 					Identities: []Identity{
-						{"a": mustPattern(t, "x-{repo}")},
-						{"b": mustPattern(t, "y-{owner}")},
+						{"a": MustPattern("x-{repo}")},
+						{"b": MustPattern("y-{owner}")},
 					},
 					Projects: Projects{Grants: map[string]ProjectGrant{"g": {
-						Projects:    []Pattern{mustPattern(t, "{owner}-{repo}")},
+						Projects:    []Pattern{MustPattern("{owner}-{repo}")},
 						Permissions: ProjectPermissions{"repository": {"pull"}},
 					}}},
 				}
@@ -121,7 +113,7 @@ func TestConfigValidate(t *testing.T) {
 				return Config{
 					Projects: Projects{Grants: map[string]ProjectGrant{"g": {
 						When:        When{"a": "x"},
-						Projects:    []Pattern{mustPattern(t, "{a}-{b}")},
+						Projects:    []Pattern{MustPattern("{a}-{b}")},
 						Permissions: ProjectPermissions{"repository": {"pull"}},
 					}}},
 				}
@@ -134,7 +126,7 @@ func TestConfigValidate(t *testing.T) {
 				return Config{
 					Projects: Projects{Grants: map[string]ProjectGrant{"g": {
 						When:        When{"a": "x"},
-						Projects:    []Pattern{mustPattern(t, "{a}")},
+						Projects:    []Pattern{MustPattern("{a}")},
 						Permissions: ProjectPermissions{"repository": {"pull"}},
 					}}},
 				}
@@ -144,7 +136,7 @@ func TestConfigValidate(t *testing.T) {
 			name: "unused identity",
 			cfg: func(t *testing.T) Config {
 				return Config{
-					Identities: []Identity{{"a": mustPattern(t, "x")}, {"a": mustPattern(t, "y")}},
+					Identities: []Identity{{"a": MustPattern("x")}, {"a": MustPattern("y")}},
 					System: System{Grants: map[string]SystemGrant{"g": {
 						When:        When{"a": "x"},
 						Permissions: SystemPermissions{"project": {"create"}},
@@ -158,7 +150,7 @@ func TestConfigValidate(t *testing.T) {
 			cfg: func(t *testing.T) Config {
 				return Config{
 					KnownClaims: []string{"a", "b"},
-					Identities:  []Identity{{"a": mustPattern(t, "x")}},
+					Identities:  []Identity{{"a": MustPattern("x")}},
 					System: System{Grants: map[string]SystemGrant{"g": {
 						Permissions: SystemPermissions{"project": {"create"}},
 					}}},
@@ -172,7 +164,7 @@ func TestConfigValidate(t *testing.T) {
 				return Config{
 					Projects: Projects{Grants: map[string]ProjectGrant{"g": {
 						When:        When{"a": "x"},
-						Projects:    []Pattern{mustPattern(t, "")},
+						Projects:    []Pattern{MustPattern("")},
 						Permissions: ProjectPermissions{"repository": {"pull"}},
 					}}},
 				}
@@ -183,10 +175,10 @@ func TestConfigValidate(t *testing.T) {
 			name: "role pattern matches no role",
 			cfg: func(t *testing.T) Config {
 				return Config{
-					Identities: []Identity{{"a": mustPattern(t, "{env}")}},
+					Identities: []Identity{{"a": MustPattern("{env}")}},
 					Projects: Projects{Grants: map[string]ProjectGrant{"g": {
-						Projects: []Pattern{mustPattern(t, "p")},
-						Roles:    []Pattern{mustPattern(t, "{env}-push")},
+						Projects: []Pattern{MustPattern("p")},
+						Roles:    []Pattern{MustPattern("{env}-push")},
 					}}},
 				}
 			},
@@ -205,12 +197,12 @@ func TestConfigValidate(t *testing.T) {
 			name: "role used via placeholder pattern",
 			cfg: func(t *testing.T) Config {
 				return Config{
-					Identities: []Identity{{"a": mustPattern(t, "{env}")}},
+					Identities: []Identity{{"a": MustPattern("{env}")}},
 					Projects: Projects{
 						Roles: map[string]ProjectPermissions{"dev-push": {"repository": {"push"}}},
 						Grants: map[string]ProjectGrant{"g": {
-							Projects: []Pattern{mustPattern(t, "p")},
-							Roles:    []Pattern{mustPattern(t, "{env}-push")},
+							Projects: []Pattern{MustPattern("p")},
+							Roles:    []Pattern{MustPattern("{env}-push")},
 						}},
 					},
 				}
@@ -222,7 +214,7 @@ func TestConfigValidate(t *testing.T) {
 				return Config{
 					Projects: Projects{Grants: map[string]ProjectGrant{"g": {
 						When:     When{"a": "x"},
-						Projects: []Pattern{mustPattern(t, "p")},
+						Projects: []Pattern{MustPattern("p")},
 					}}},
 				}
 			},
@@ -233,7 +225,7 @@ func TestConfigValidate(t *testing.T) {
 			cfg: func(t *testing.T) Config {
 				return Config{
 					KnownClaims: []string{},
-					Identities:  []Identity{{"a": mustPattern(t, "x")}},
+					Identities:  []Identity{{"a": MustPattern("x")}},
 				}
 			},
 			wantErr: "identities[0].a: claim not listed in known_claims",
@@ -242,9 +234,9 @@ func TestConfigValidate(t *testing.T) {
 			name: "grant ID used in two sections",
 			cfg: func(t *testing.T) Config {
 				return Config{
-					Identities: []Identity{{"a": mustPattern(t, "x")}},
+					Identities: []Identity{{"a": MustPattern("x")}},
 					Projects: Projects{Grants: map[string]ProjectGrant{"g": {
-						Projects:    []Pattern{mustPattern(t, "p")},
+						Projects:    []Pattern{MustPattern("p")},
 						Permissions: ProjectPermissions{"repository": {"pull"}},
 					}}},
 					System: System{Grants: map[string]SystemGrant{"g": {
@@ -268,12 +260,12 @@ func TestConfigValidate(t *testing.T) {
 			name: "duplicate role in grant",
 			cfg: func(t *testing.T) Config {
 				return Config{
-					Identities: []Identity{{"a": mustPattern(t, "x")}},
+					Identities: []Identity{{"a": MustPattern("x")}},
 					Projects: Projects{
 						Roles: map[string]ProjectPermissions{"pull": {"repository": {"pull"}}},
 						Grants: map[string]ProjectGrant{"g": {
-							Projects: []Pattern{mustPattern(t, "p")},
-							Roles:    []Pattern{mustPattern(t, "pull"), mustPattern(t, "pull")},
+							Projects: []Pattern{MustPattern("p")},
+							Roles:    []Pattern{MustPattern("pull"), MustPattern("pull")},
 						}},
 					},
 				}
@@ -284,7 +276,7 @@ func TestConfigValidate(t *testing.T) {
 			name: "placeholder in permission",
 			cfg: func(t *testing.T) Config {
 				return Config{
-					Identities: []Identity{{"a": mustPattern(t, "x")}},
+					Identities: []Identity{{"a": MustPattern("x")}},
 					AllProjects: AllProjects{Grants: map[string]AllProjectGrant{"g": {
 						Permissions: ProjectPermissions{"repo{x}": {"pull"}},
 					}}},
@@ -300,7 +292,7 @@ func TestConfigValidate(t *testing.T) {
 		{
 			name: "duplicate identities",
 			cfg: func(t *testing.T) Config {
-				id := Identity{"a": mustPattern(t, "x")}
+				id := Identity{"a": MustPattern("x")}
 				return Config{Identities: []Identity{id, id}}
 			},
 			wantErr: "duplicate entry: {a: x}",
@@ -309,7 +301,7 @@ func TestConfigValidate(t *testing.T) {
 			name: "placeholder in when",
 			cfg: func(t *testing.T) Config {
 				return Config{
-					Identities: []Identity{{"a": mustPattern(t, "x-{repo}")}},
+					Identities: []Identity{{"a": MustPattern("x-{repo}")}},
 					System: System{Grants: map[string]SystemGrant{"g": {
 						When:        When{"a": "x-{repo}"},
 						Permissions: SystemPermissions{"project": {"create"}},
@@ -322,7 +314,7 @@ func TestConfigValidate(t *testing.T) {
 			name: "when matches no identity",
 			cfg: func(t *testing.T) Config {
 				return Config{
-					Identities: []Identity{{"repository": mustPattern(t, "acme/{repo}")}},
+					Identities: []Identity{{"repository": MustPattern("acme/{repo}")}},
 					System: System{Grants: map[string]SystemGrant{"g": {
 						When:        When{"repository": "contoso/x"},
 						Permissions: SystemPermissions{"project": {"create"}},
@@ -347,7 +339,8 @@ func TestConfigValidate(t *testing.T) {
 }
 
 func TestGrantPlaceholderNames(t *testing.T) {
-	p := func(s string) []Pattern { return []Pattern{mustPattern(t, s)} }
+	t.Parallel()
+	p := func(s string) []Pattern { return []Pattern{MustPattern(s)} }
 	tests := []struct {
 		name  string
 		names map[string]bool
