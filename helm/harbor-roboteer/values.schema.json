@@ -44,6 +44,9 @@
         "type": "string"
       }
     },
+    "config": {
+      "type": "string"
+    },
     "env": {
       "type": "array",
       "items": {
@@ -55,6 +58,9 @@
       "items": {
         "$ref": "#/$defs/_definitions.json/definitions/io.k8s.api.core.v1.EnvFromSource"
       }
+    },
+    "existingConfigMap": {
+      "type": "string"
     },
     "fullnameOverride": {
       "type": "string"
@@ -237,6 +243,36 @@
         "error"
       ]
     },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "port": {
+          "type": "integer",
+          "maximum": 65535,
+          "minimum": 1
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "interval": {
+              "type": "string"
+            },
+            "labels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
     "nameOverride": {
       "type": "string"
     },
@@ -253,6 +289,12 @@
           "type": "boolean"
         },
         "ingressFrom": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/_definitions.json/definitions/io.k8s.api.networking.v1.NetworkPolicyPeer"
+          }
+        },
+        "metricsFrom": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/_definitions.json/definitions/io.k8s.api.networking.v1.NetworkPolicyPeer"
