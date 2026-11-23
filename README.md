@@ -1,11 +1,11 @@
 # harbor-roboteer
 
-Service to run next to Harbor to map OIDC to robot accounts
+Create short-lived Harbor robot accounts for OIDC-authenticated workloads.
 
 ## Endpoints
 
-See <https://riskident.github.io/harbor-roboteer/>, which is generated from
-[`docs/openapi.yaml`](docs/openapi.yaml).
+See the [API documentation](https://riskident.github.io/harbor-roboteer/),
+generated from [`docs/openapi.yaml`](docs/openapi.yaml).
 
 ## How it works
 
@@ -42,8 +42,7 @@ sequenceDiagram
 
 ### mise
 
-Mise (aka "mise-en-place") is used to manage tooling to make sure we have the
-same version of everything.
+Mise manages the tool versions used by this project.
 
 Recommended to set up automatic activation:
 
@@ -58,7 +57,7 @@ echo 'mise activate fish | source' >> ~/.config/fish/config.fish
 
 ### pre-commit via hk
 
-Recommended to use our pre-commit hooks, provided via [hk](https://hk.jdx.dev/)
+Run the pre-commit hooks with [hk](https://hk.jdx.dev/):
 
 ```bash
 # if using Git 2.54+ (check with "git --version"), then it's recommended to install globally
@@ -70,10 +69,9 @@ mise run pre-commit:install
 
 ### API docs
 
-OpenAPI spec in [`docs/openapi.yaml`](docs/openapi.yaml) is hand-written.
-Nothing is generated from it.
-It is only used by [Redoc](https://github.com/Redocly/redoc) in GitHub Pages
-at <https://riskident.github.io/harbor-roboteer/>.
+The hand-written [`docs/openapi.yaml`](docs/openapi.yaml) is rendered with
+[Redoc](https://github.com/Redocly/redoc) and published to
+<https://riskident.github.io/harbor-roboteer/>.
 
 ```bash
 npm install
@@ -87,9 +85,9 @@ The `version` in the spec is bumped by release-please, via the
 
 | Link | Purpose | Comparison
 | --- | --- | ---
-| <https://github.com/dvob/hati> | Same as this project. Create robot accounts from JWTs. | Missing robot account cleanup, leading to build up of expired robot accounts.
+| <https://github.com/dvob/hati> | Create robot accounts from JWTs. | Does not clean up expired robot accounts.
 | <https://github.com/corelyr-oss/vault-plugin-secrets-harbor> | HashiCorp Vault/OpenBao plugin to dynamically create robot accounts | Requires HashiCorp Vault or OpenBao
 | <https://github.com/clique-it-tech/vault-plugin-secrets-harbor> | HashiCorp Vault/OpenBao plugin to dynamically create robot accounts | Requires HashiCorp Vault or OpenBao
-| <https://github.com/AetherizeGmbH/harbor-workload-identity-bridge> | Kubelet credential provider plugin to replace need for `imagePullSecrets` in Kubernetes | Different use-case
-| <https://github.com/gawsoftpl/credential-provider-kubernetes> | Kubelet credential provider plugin, but only the kubelet side. Expects a broker endpoint | Different use-case
-| <https://container-registry.com/posts/keyless-harbor-workload-identity-federation/> | 8gears' blog post about their commercial feature in 8gcr. Map JWTs to existing robot accounts, inside the `docker login` flow and as a kubelet credential provider | Proprietary
+| <https://github.com/AetherizeGmbH/harbor-workload-identity-bridge> | Kubernetes kubelet credential provider; replaces image pull secrets. | Different use-case
+| <https://github.com/gawsoftpl/credential-provider-kubernetes> | Kubernetes kubelet-side credential provider; requires a broker endpoint. | Different use-case
+| <https://container-registry.com/posts/keyless-harbor-workload-identity-federation/> | Commercial Harbor workload-identity federation; maps JWTs to existing robot accounts. | Proprietary
