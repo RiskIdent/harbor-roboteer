@@ -6,7 +6,7 @@
 //
 // Each permission is an object of:
 //   kind:      'project' or 'system'
-//   namespace: project name, or '*' for all projects. Only for kind 'project'.
+//   namespace: project name, or '*' for all projects. For kind 'system', omit it or use '/'.
 //   access:    Harbor resource to list of actions, e.g. { repository: ['pull'] }
 
 // Helpers to build the permission objects.
@@ -16,7 +16,7 @@ local lib = {
   // Permissions on all projects, including ones created later ("Cover all projects" in Harbor).
   allProjects(access):: self.project('*', access),
   // System-level permissions.
-  system(access):: { kind: 'system', access: access },
+  system(access):: { kind: 'system', namespace: '/', access: access },
 };
 
 // Reusable sets of access.

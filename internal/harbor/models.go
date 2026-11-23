@@ -57,8 +57,9 @@ func (c RobotCreate) RobotPermissions() []*models.RobotPermission {
 	permissions := make([]*models.RobotPermission, 0, size)
 	if len(c.SystemPermissions) > 0 {
 		permissions = append(permissions, &models.RobotPermission{
-			Kind:   "system",
-			Access: c.SystemPermissions.HarborAccess(),
+			Kind:      "system",
+			Namespace: "/", // Harbor requires "/" for system permissions
+			Access:    c.SystemPermissions.HarborAccess(),
 		})
 	}
 	if len(c.AllProjectPermissions) > 0 {

@@ -151,8 +151,8 @@ func (p *Permissions) add(entry permissionEntry) error {
 	}
 	switch entry.Kind {
 	case "system":
-		if entry.Namespace != "" {
-			return errors.New("system permissions can't have a namespace")
+		if entry.Namespace != "" && entry.Namespace != "/" {
+			return errors.New(`system permissions must have no namespace, or "/"`)
 		}
 		p.System.add(entry.Access)
 	case "project":

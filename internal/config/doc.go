@@ -15,7 +15,7 @@
 //
 //   - kind: "project" or "system".
 //   - namespace: the project name, or "*" for all projects.
-//     Required for "project", not allowed for "system".
+//     Required for "project". Optional for "system", where it must be "/" if set.
 //   - access: Harbor resource to list of actions, such as {repository: ["pull"]}.
 //
 // Permissions for the same project are merged. An empty list grants nothing,

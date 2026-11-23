@@ -19,6 +19,8 @@ func TestEvaluate(t *testing.T) {
 		  lib.project(claims.repo, { repository: ['pull'], artifact: ['read'] }),
 		  if claims.repo == 'other' then lib.system({ project: ['create'] }),
 		  lib.allProjects({ repository: ['pull'] }),
+		  lib.system({ label: ['create'] }),
+		  { kind: 'system', namespace: '/', access: { label: ['update'] } },
 		]
 	`)
 	got, err := cfg.Evaluate(map[string]any{"repo": "web"})
@@ -28,6 +30,7 @@ func TestEvaluate(t *testing.T) {
 	want := Permissions{
 		Projects:    map[string]Access{"web": {"repository": {"pull", "push"}, "artifact": {"read"}}},
 		AllProjects: Access{"repository": {"pull"}},
+		System:      Access{"label": {"create", "update"}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("wrong permissions\nwant: %#v\ngot:  %#v", want, got)
