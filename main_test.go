@@ -1,16 +1,25 @@
 package main
 
 import (
-	"context"
-	"log/slog"
 	"testing"
 
 	"github.com/RiskIdent/harbor-roboteer/internal/config"
 )
 
 func TestExampleConfigIsValid(t *testing.T) {
-	_, err := config.Load(context.Background(), slog.New(slog.DiscardHandler), "roboteer.yaml")
+	cfg, err := config.Load("roboteer.jsonnet")
 	if err != nil {
-		t.Fatalf("roboteer.yaml is invalid:\n%s", err)
+		t.Fatalf("roboteer.jsonnet is invalid:\n%s", err)
+	}
+	permissions, err := cfg.Evaluate(map[string]any{
+		"repository":       "acme/deploy-tools",
+		"repository_owner": "acme",
+		"environment":      "harbor",
+	})
+	if err != nil {
+		t.Fatalf("roboteer.jsonnet fails to evaluate:\n%s", err)
+	}
+	if permissions.IsEmpty() {
+		t.Fatal("roboteer.jsonnet grants no permissions to an acme repository")
 	}
 }

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 
@@ -40,7 +41,7 @@ type ServeOptions struct {
 }
 
 var ServeDefaults = ServeOptions{
-	Config:      "roboteer.yaml",
+	Config:      "roboteer.jsonnet",
 	Addr:        "127.0.0.1:8080",
 	MetricsAddr: "127.0.0.1:9090",
 	LogLevel:    "info",
@@ -69,15 +70,11 @@ to quickly create a Cobra application.`,
 
 		log := logger.New(opt.LogLevel, opt.LogFormat)
 
-		configWatcher, err := config.Load(ctx, log, opt.Config)
+		cfg, err := config.Load(opt.Config)
 		if err != nil {
 			return err
 		}
-
-		if err := configWatcher.Watch(ctx); err != nil {
-			return fmt.Errorf("watch config file: %w", err)
-		}
-		defer func() { _ = configWatcher.Close() }()
+		log.InfoContext(ctx, "Config loaded", slog.String("path", opt.Config))
 
 		traceProvider, err := tracing.NewTracerProvider(ctx, log)
 		if err != nil {
@@ -112,7 +109,7 @@ to quickly create a Cobra application.`,
 		}
 		defer func() { _ = keys.Close(context.WithoutCancel(ctx)) }()
 
-		s, err := server.NewServer(ctx, opt.Addr, log, hc, configWatcher,
+		s, err := server.NewServer(ctx, opt.Addr, log, hc, cfg,
 			jwt.WithKeySet(keys.Set),
 			jwt.WithIssuer(opt.OIDCIssuer),
 			jwt.WithAudience(opt.OIDCAudience),
