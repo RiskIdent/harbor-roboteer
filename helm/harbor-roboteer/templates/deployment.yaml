@@ -14,8 +14,8 @@ spec:
   template:
     metadata:
       annotations:
-        # the app reads its config only at startup, so roll the pods when it changes
         {{- if not .Values.existingConfigMap }}
+        # the app reads its config only at startup, so roll the pods when it changes
         checksum/config: {{ .Values.config | sha256sum }}
         {{- end }}
         {{- with .Values.podAnnotations }}

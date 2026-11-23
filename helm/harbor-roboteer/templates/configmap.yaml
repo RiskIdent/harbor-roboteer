@@ -6,5 +6,5 @@ metadata:
   labels:
     {{- include "harbor-roboteer.labels" . | nindent 4 }}
 data:
-  {{- dict "roboteer.jsonnet" .Values.config | toYaml | nindent 2 }}
+  {{- dict "roboteer.jsonnet" (tpl .Values.config .) | toYaml | nindent 2 }}
 {{- end }}
