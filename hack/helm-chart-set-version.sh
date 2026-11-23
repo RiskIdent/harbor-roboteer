@@ -15,7 +15,7 @@ VERSION="${1:?missing required arg}"
 # ]
 GORELEASER_ARTIFACTS="${GORELEASER_ARTIFACTS:-}"
 
-if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
     echo "::error::Version must follow pattern 'v1.2.3', but got: '$VERSION'" >&2
 fi
 
