@@ -97,7 +97,7 @@ type Robot struct {
 
 type RobotMetadata struct {
 	Description string    `yaml:"desc,omitempty"`
-	EarlyExpiry time.Time `yaml:"earlyExpiry,omitempty"`
+	Expiry      time.Time `yaml:"expiry,omitempty"`
 	DeleteToken string    `yaml:"deleteToken,omitempty"`
 	ManagedBy   string    `yaml:"managedBy,omitempty"`
 }
@@ -115,8 +115,8 @@ func ParseRobotMetadata(desc string, creationTime strfmt.DateTime, duration *int
 	if err := yaml.Unmarshal([]byte(desc), &metadata); err != nil {
 		metadata.Description = desc
 	}
-	if metadata.EarlyExpiry.IsZero() && duration != nil && *duration != -1 {
-		metadata.EarlyExpiry = time.Time(creationTime).Add(24 * time.Hour * time.Duration(*duration))
+	if metadata.Expiry.IsZero() && duration != nil && *duration != -1 {
+		metadata.Expiry = time.Time(creationTime).Add(24 * time.Hour * time.Duration(*duration))
 	}
 	return metadata
 }

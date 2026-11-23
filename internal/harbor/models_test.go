@@ -95,12 +95,12 @@ func TestRobotMetadataString(t *testing.T) {
 			name: "full",
 			input: RobotMetadata{
 				Description: "hello",
-				EarlyExpiry: time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC),
+				Expiry:      time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC),
 				DeleteToken: "heyomayo",
 				ManagedBy:   "harbor-roboteer",
 			},
 			want: "desc: hello\n" +
-				"earlyExpiry: 2026-11-18T12:00:00Z\n" +
+				"expiry: 2026-11-18T12:00:00Z\n" +
 				"deleteToken: heyomayo\n" +
 				"managedBy: harbor-roboteer",
 		},
@@ -128,20 +128,20 @@ func TestParseRobotMetadata(t *testing.T) {
 		{name: "malformed yaml", input: "desc: [", want: RobotMetadata{Description: "desc: ["}},
 		{
 			name:  "yaml metadata",
-			input: "desc: hello\nearlyExpiry: 2026-11-18T13:00:00Z\ndeleteToken: token\nmanagedBy: roboteer\n",
-			want:  RobotMetadata{Description: "hello", EarlyExpiry: early, DeleteToken: "token", ManagedBy: "roboteer"},
+			input: "desc: hello\nexpiry: 2026-11-18T13:00:00Z\ndeleteToken: token\nmanagedBy: roboteer\n",
+			want:  RobotMetadata{Description: "hello", Expiry: early, DeleteToken: "token", ManagedBy: "roboteer"},
 		},
 		{
 			name:     "early expiry overrides duration",
-			input:    "earlyExpiry: 2026-11-18T13:00:00Z\n",
+			input:    "expiry: 2026-11-18T13:00:00Z\n",
 			duration: new(int64(2)),
-			want:     RobotMetadata{EarlyExpiry: early},
+			want:     RobotMetadata{Expiry: early},
 		},
 		{
 			name:     "duration fallback",
 			input:    "desc: hello\n",
 			duration: new(int64(2)),
-			want:     RobotMetadata{Description: "hello", EarlyExpiry: creation.Add(48 * time.Hour)},
+			want:     RobotMetadata{Description: "hello", Expiry: creation.Add(48 * time.Hour)},
 		},
 		{name: "never expires", input: "desc: hello\n", duration: new(int64(-1)), want: RobotMetadata{Description: "hello"}},
 	}
@@ -158,7 +158,7 @@ func TestParseRobotMetadata(t *testing.T) {
 func TestRobotMetadataRoundTrip(t *testing.T) {
 	input := RobotMetadata{
 		Description: "hello: world\nsecond line",
-		EarlyExpiry: time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC),
+		Expiry:      time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC),
 		DeleteToken: "sha256:0123",
 		ManagedBy:   "harbor-roboteer",
 	}
@@ -183,7 +183,7 @@ func TestNewRobotFromResponse(t *testing.T) {
 		Name:        "robot$example",
 		Secret:      "secret",
 		Description: "hello",
-		EarlyExpiry: creation.Add(48 * time.Hour),
+		Expiry:      creation.Add(48 * time.Hour),
 		DeleteToken: "token",
 	}
 	if !reflect.DeepEqual(got, want) {
