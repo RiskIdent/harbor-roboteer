@@ -161,4 +161,4 @@ jobs:
           set -x
           ./hack/helm-chart-set-version.sh "$VERSION"
           helm package ./helm/harbor-roboteer
-          helm push "./harbor-roboteer-${VERSION#v}.tgz" oci://ghcr.io/riskident
+          helm push "./harbor-roboteer-${VERSION#v}.tgz" oci://ghcr.io/riskident/charts
