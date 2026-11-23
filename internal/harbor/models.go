@@ -106,6 +106,7 @@ func (m RobotMetadata) String() string {
 	if m == (RobotMetadata{}) {
 		return ""
 	}
+	m.Expiry = m.Expiry.Truncate(time.Second)
 	b, _ := yaml.Marshal(m) // can't error
 	return string(bytes.TrimSpace(b))
 }

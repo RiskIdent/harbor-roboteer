@@ -95,7 +95,7 @@ func TestRobotMetadataString(t *testing.T) {
 			name: "full",
 			input: RobotMetadata{
 				Description: "hello",
-				Expiry:      time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC),
+				Expiry:      time.Date(2026, 11, 18, 12, 0, 0, 123_000_000, time.UTC),
 				DeleteToken: "heyomayo",
 				ManagedBy:   "harbor-roboteer",
 			},
