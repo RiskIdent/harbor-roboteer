@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"sync"
 	"testing"
@@ -100,4 +102,47 @@ func mustParse(t *testing.T, source string) *Config {
 		t.Fatal(err)
 	}
 	return cfg
+}
+
+func TestImportsAreReadOnce(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	libPath := filepath.Join(dir, "roles.libsonnet")
+	writeFile(t, libPath, `{ pull: { repository: ['pull'] } }`)
+	mainPath := filepath.Join(dir, "roboteer.jsonnet")
+	writeFile(t, mainPath, `
+		local roles = import 'roles.libsonnet';
+		function(claims) [{ kind: 'system', access: roles.pull }]
+	`)
+	cfg, err := Load(mainPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	writeFile(t, libPath, `{ pull: { repository: ['push'] } }`)
+	cfg.runtimes = sync.Pool{} // force a new runtime, which must still see the old file
+
+	got, err := cfg.Evaluate(map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := Access{"repository": {"pull"}}
+	if !reflect.DeepEqual(got.System, want) {
+		t.Errorf("wrong permissions\nwant: %#v\ngot:  %#v", want, got.System)
+	}
+}
+
+func TestParseRejectsMissingImport(t *testing.T) {
+	t.Parallel()
+	source := `local roles = import 'missing.libsonnet'; function(claims) []`
+	if _, err := Parse(filepath.Join(t.TempDir(), "roboteer.jsonnet"), []byte(source)); err == nil {
+		t.Fatal("want error, got nil")
+	}
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
 }

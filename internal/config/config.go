@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -19,6 +20,7 @@ import (
 type Config struct {
 	path     string
 	source   string
+	files    importer
 	runtimes sync.Pool // *runtime, as a [jsonnet.VM] is not safe for concurrent use
 }
 
@@ -45,8 +47,16 @@ func Load(path string) (*Config, error) {
 
 // Parse parses the Jsonnet file content. The path is shown in errors,
 // and relative imports are resolved from its directory.
+//
+// All imported files are read here, and never again, so that later changes
+// to them on disk don't affect this config.
 func Parse(path string, source []byte) (*Config, error) {
 	c := &Config{path: path, source: string(source)}
+	files, err := readImports(c.path, c.source)
+	if err != nil {
+		return nil, err
+	}
+	c.files = files
 	rt, err := c.newRuntime()
 	if err != nil {
 		return nil, err
@@ -123,8 +133,61 @@ func (c *Config) newRuntime() (*runtime, error) {
 		return nil, err
 	}
 	vm := jsonnet.MakeVM()
-	vm.Importer(&jsonnet.FileImporter{}) // resolves imports relative to the importing file
+	vm.Importer(c.files)
 	return &runtime{vm: vm, node: node}, nil
+}
+
+// readImports reads the config and all files it imports, directly or indirectly.
+func readImports(path, source string) (importer, error) {
+	files := importer{resolveImport("", path): jsonnet.MakeContents(source)}
+	vm := jsonnet.MakeVM()
+	vm.Importer(fileReader{files})
+	if _, err := vm.FindDependencies("", []string{path}); err != nil {
+		return nil, err
+	}
+	return files, nil
+}
+
+// importer serves the files read by [readImports], keyed by [resolveImport].
+// It is never changed after [Parse], so all runtimes of a [Config] can share it
+// without locking, and they all see the same content even if the files change on disk.
+type importer map[string]jsonnet.Contents
+
+func (files importer) Import(importedFrom, importedPath string) (jsonnet.Contents, string, error) {
+	path := resolveImport(importedFrom, importedPath)
+	contents, ok := files[path]
+	if !ok {
+		return jsonnet.Contents{}, "", fmt.Errorf("import %q was not read at startup", importedPath)
+	}
+	return contents, path, nil
+}
+
+// fileReader reads files from disk into an [importer]. Only used by [readImports].
+type fileReader struct {
+	files importer
+}
+
+func (r fileReader) Import(importedFrom, importedPath string) (jsonnet.Contents, string, error) {
+	path := resolveImport(importedFrom, importedPath)
+	if contents, ok := r.files[path]; ok {
+		return contents, path, nil
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return jsonnet.Contents{}, "", fmt.Errorf("couldn't open import %q: %w", importedPath, err)
+	}
+	contents := jsonnet.MakeContentsRaw(b)
+	r.files[path] = contents
+	return contents, path, nil
+}
+
+// resolveImport returns the path of an imported file, relative to the importing file.
+func resolveImport(importedFrom, importedPath string) string {
+	if filepath.IsAbs(importedPath) {
+		return filepath.Clean(importedPath)
+	}
+	dir, _ := filepath.Split(importedFrom)
+	return filepath.Join(dir, importedPath)
 }
 
 type permissionEntry struct {
