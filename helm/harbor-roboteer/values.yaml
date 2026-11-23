@@ -169,7 +169,7 @@ autoscaling:
 
 # Prometheus metrics, served at /metrics.
 metrics:
-  # Enable the metrics listener and expose it through the Service.
+  # Enable the metrics listener and expose it through a separate ClusterIP Service.
   enabled: false
   # Port of the metrics server, passed as --metrics-addr.
   port: 9090 # @schema type: integer; minimum: 1; maximum: 65535

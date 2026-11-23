@@ -1,0 +1,17 @@
+{{- if .Values.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ printf "%s-metrics" (include "harbor-roboteer.fullname" . | trunc 55 | trimSuffix "-") }}
+  labels:
+    {{- include "harbor-roboteer.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.metrics.port }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "harbor-roboteer.selectorLabels" . | nindent 4 }}
+{{- end }}
