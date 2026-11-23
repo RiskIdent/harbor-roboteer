@@ -1,0 +1,10 @@
+{{- if not .Values.existingConfigMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "harbor-roboteer.fullname" . }}
+  labels:
+    {{- include "harbor-roboteer.labels" . | nindent 4 }}
+data:
+  {{- dict "roboteer.jsonnet" .Values.config | toYaml | nindent 2 }}
+{{- end }}
