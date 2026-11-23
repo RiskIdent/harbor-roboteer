@@ -57,9 +57,9 @@ var ServeDefaults = ServeOptions{
 // serveCmd represents the serve command
 var serveCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "Start the Harbor robot-account service and metrics endpoint.",
-	Long: `Runs the HTTP API that validates OIDC tokens and creates corresponding
-Harbor robot accounts.`,
+	Short: "Start the Harbor robot account API.",
+	Long: `Starts the HTTP API. It validates OIDC tokens, evaluates the configured
+policy against their claims, and creates Harbor robot accounts.`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		ctx := cmd.Context()
 		opt, err := LoadServeOptions(cmd.Flags())

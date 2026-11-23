@@ -1,6 +1,6 @@
 # harbor-roboteer Helm chart
 
-Helm chart for deploying [harbor-roboteer](https://github.com/RiskIdent/harbor-roboteer) to Kubernetes.
+Deploys [harbor-roboteer](https://github.com/RiskIdent/harbor-roboteer) to Kubernetes.
 
 ## Installation
 

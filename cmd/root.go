@@ -12,11 +12,11 @@ import (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "harbor-roboteer",
-	Short: "Manage Harbor robot accounts for OIDC-authenticated workloads.",
-	Long: `harbor-roboteer maps OIDC tokens to Harbor robot accounts, allowing workloads
-to authenticate to Harbor without long-lived credentials.
+	Short: "Create Harbor robot accounts from OIDC tokens.",
+	Long: `harbor-roboteer creates Harbor robot accounts for workloads presenting valid
+OIDC tokens. The configured policy maps token claims to account permissions.
 
-Use the serve subcommand to start the API and metrics servers.`,
+Run "harbor-roboteer serve" to start the API.`,
 	SilenceUsage: true,
 }
 
