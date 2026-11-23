@@ -32,8 +32,8 @@ if [[ -n "$GORELEASER_ARTIFACTS" ]]; then
     app_version="$VERSION@$digest"
 fi
 
-sed -i "s|^version:.*|version: ${VERSION#v}|; s|^appVersion:.*|appVersion: \"$app_version\"|" "$chart"
+sed -i "s|^version:.*|version: $VERSION|; s|^appVersion:.*|appVersion: \"$app_version\"|" "$chart"
 
 echo "Updated $chart:"
-echo "  version: ${VERSION#v}"
+echo "  version: $VERSION"
 echo "  appVersion: $app_version"
