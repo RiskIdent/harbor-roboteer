@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 )
 
 func TestNew(t *testing.T) {
+	os.Clearenv() // Prevent proxy settings from redirecting local test traffic.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v2.0/ping" {
 			t.Errorf("path = %q, want /api/v2.0/ping", r.URL.Path)

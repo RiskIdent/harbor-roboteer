@@ -1,194 +1,188 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
+	"os"
+	"slices"
+	"strings"
+	"sync"
 
-	validation "github.com/go-ozzo/ozzo-validation/v4"
+	"github.com/google/go-jsonnet"
+	"github.com/google/go-jsonnet/ast"
 )
 
+// Config is a parsed Jsonnet config. It is safe for concurrent use.
 type Config struct {
-	KnownClaims []string `yaml:"known_claims"`
-
-	Identities []Identity `yaml:"identities"`
-
-	Projects Projects `yaml:"projects"`
-
-	AllProjects AllProjects `yaml:"all_projects"`
-
-	System System `yaml:"system"`
+	path     string
+	source   string
+	runtimes sync.Pool // *runtime, as a [jsonnet.VM] is not safe for concurrent use
 }
 
-// Validate checks the config for semantic errors.
-func (c *Config) Validate() error {
-	vc := newValidationContext(c)
-
-	err := validation.Errors{
-		"known_claims": validation.Validate(c.KnownClaims,
-			validation.Each(validation.Required, noPlaceholders()),
-			uniqueItems(func(claim string) string { return claim }),
-			vc.usedClaimsOnly()),
-		"identities":   vc.validateIdentities(c.Identities),
-		"projects":     c.Projects.Validate(vc),
-		"all_projects": c.AllProjects.Validate(vc),
-		"system":       c.System.Validate(vc),
-	}.Filter()
-	return errors.Join(flattenErrors("", err)...)
+// Permissions are the permissions granted to one token.
+// Actions are sorted and without duplicates.
+type Permissions struct {
+	Projects    map[string]Access `json:"projects" yaml:"projects"`
+	AllProjects Access            `json:"allProjects" yaml:"allProjects"`
+	System      Access            `json:"system" yaml:"system"`
 }
 
-type Identity map[string]Pattern
+// Access maps Harbor resources to actions, such as {"repository": ["pull", "push"]}.
+type Access map[string]Set[string]
 
-// AvailableNames returns the claim names and capture names of the identity.
-func (id Identity) AvailableNames() map[string]bool {
-	names := map[string]bool{}
-	for claim, pattern := range id {
-		names[claim] = true
-		for name := range pattern.CaptureNames() {
-			names[name] = true
+// Load reads and parses the config file.
+func Load(path string) (*Config, error) {
+	source, err := os.ReadFile(path)
+	if err != nil {
+		// don't need to include "path" in error, as [os.ReadFile] already does that
+		return nil, fmt.Errorf("load config file: %w", err)
+	}
+	return Parse(path, source)
+}
+
+// Parse parses the Jsonnet file content. The path is shown in errors,
+// and relative imports are resolved from its directory.
+func Parse(path string, source []byte) (*Config, error) {
+	c := &Config{path: path, source: string(source)}
+	rt, err := c.newRuntime()
+	if err != nil {
+		return nil, err
+	}
+	c.runtimes.Put(rt)
+	return c, nil
+}
+
+// Evaluate calls the config function with the claims as its "claims" argument,
+// and merges the returned permissions.
+func (c *Config) Evaluate(claims map[string]any) (Permissions, error) {
+	claimsJSON, err := json.Marshal(claims)
+	if err != nil {
+		return Permissions{}, fmt.Errorf("encode claims: %w", err)
+	}
+	output, err := c.evaluate(string(claimsJSON))
+	if err != nil {
+		return Permissions{}, err
+	}
+	var entries []*permissionEntry
+	decoder := json.NewDecoder(strings.NewReader(output))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&entries); err != nil {
+		return Permissions{}, fmt.Errorf("config must return a list of permissions: %w", err)
+	}
+	return newPermissions(entries)
+}
+
+// IsEmpty reports whether no permissions are granted.
+func (p Permissions) IsEmpty() bool {
+	return len(p.Projects) == 0 && len(p.AllProjects) == 0 && len(p.System) == 0
+}
+
+// LogValue implements [slog.LogValuer], for the audit log.
+// Empty categories are logged as {} instead of null.
+func (p Permissions) LogValue() slog.Value {
+	p.Projects = emptyIfNil(p.Projects)
+	p.AllProjects = emptyIfNil(p.AllProjects)
+	p.System = emptyIfNil(p.System)
+	return slog.AnyValue(flowYAMLLogValue{p})
+}
+
+func emptyIfNil[M ~map[K]V, K comparable, V any](m M) M {
+	if m == nil {
+		return M{}
+	}
+	return m
+}
+
+func (c *Config) evaluate(claimsJSON string) (string, error) {
+	rt, ok := c.runtimes.Get().(*runtime)
+	if !ok {
+		var err error
+		if rt, err = c.newRuntime(); err != nil {
+			return "", err
 		}
 	}
-	return names
+	defer c.runtimes.Put(rt)
+	// a top-level argument, unlike an ext var, keeps the VM's cache of evaluated imports
+	rt.vm.TLACode("claims", claimsJSON)
+	return rt.vm.Evaluate(rt.node)
 }
 
-type Projects struct {
-	// Map of roboteer project roles. These can be referenced in the grants to deduplicate your config.
-	Roles map[string]ProjectPermissions `yaml:"roles"`
-	// Map of permission grants. The map key is the grant "ID" (shown in audit logs).
-	// All matching grants add up; nothing denies.
-	Grants map[string]ProjectGrant `yaml:"grants"`
+// runtime is a VM together with its own parsed copy of the config.
+// The VM caches evaluated imports, so they are only evaluated once per runtime.
+type runtime struct {
+	vm   *jsonnet.VM
+	node ast.Node
 }
 
-func (p Projects) Validate(vc validationContext) error {
-	return validation.Errors{
-		"roles":  validateRoleDefs(p.Roles, vc.projectRoleRefs()),
-		"grants": vc.validateGrants(p.Grants),
-	}.Filter()
-}
-
-type ProjectPermissions map[string][]string
-
-type ProjectGrant struct {
-	When        When               `yaml:"when,omitempty"`
-	Projects    []Pattern          `yaml:"projects"`
-	Roles       []Pattern          `yaml:"roles"`
-	Permissions ProjectPermissions `yaml:"permissions"`
-}
-
-// PlaceholderNames returns the placeholder names used in any pattern of the grant.
-func (g ProjectGrant) PlaceholderNames() map[string]bool {
-	return placeholderNamesIn(g.Projects, g.Roles)
-}
-
-func (g ProjectGrant) Validate(vc validationContext) error {
-	err := validation.Errors{
-		"when":        validation.Validate(g.When, vc.whenRules()...),
-		"projects":    validation.Validate(g.Projects, validation.Required, validation.Each(validation.Required), vc.placeholdersFromIdentities()),
-		"roles":       vc.validateRoles(g.Roles, vc.cfg.Projects.Roles),
-		"permissions": validation.Validate(g.Permissions, permissionRules[ProjectPermissions]()...),
-	}.Filter()
+func (c *Config) newRuntime() (*runtime, error) {
+	node, err := jsonnet.SnippetToAST(c.path, c.source)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if err := requireRolesOrPermissions(g.Roles, g.Permissions); err != nil {
-		return err
-	}
-	return vc.placeholdersFromOneIdentity(g.When, g.PlaceholderNames())
+	vm := jsonnet.MakeVM()
+	vm.Importer(&jsonnet.FileImporter{}) // resolves imports relative to the importing file
+	return &runtime{vm: vm, node: node}, nil
 }
 
-type AllProjects struct {
-	// Grants on all projects, including ones created later ("Cover all projects" in Harbor).
-	// Uses the project roles.
-	// All matching grants add up; nothing denies.
-	Grants map[string]AllProjectGrant `yaml:"grants"`
+type permissionEntry struct {
+	Kind      string              `json:"kind"`
+	Namespace string              `json:"namespace"`
+	Access    map[string][]string `json:"access"`
 }
 
-func (a AllProjects) Validate(vc validationContext) error {
-	return validation.Errors{
-		"grants": vc.validateGrants(a.Grants),
-	}.Filter()
-}
-
-type AllProjectGrant struct {
-	When        When               `yaml:"when,omitempty"`
-	Roles       []Pattern          `yaml:"roles"`
-	Permissions ProjectPermissions `yaml:"permissions"`
-}
-
-// PlaceholderNames returns the placeholder names used in any pattern of the grant.
-func (g AllProjectGrant) PlaceholderNames() map[string]bool {
-	return placeholderNamesIn(g.Roles)
-}
-
-func (g AllProjectGrant) Validate(vc validationContext) error {
-	err := validation.Errors{
-		"when":        validation.Validate(g.When, vc.whenRules()...),
-		"roles":       vc.validateRoles(g.Roles, vc.cfg.Projects.Roles),
-		"permissions": validation.Validate(g.Permissions, permissionRules[ProjectPermissions]()...),
-	}.Filter()
-	if err != nil {
-		return err
-	}
-	if err := requireRolesOrPermissions(g.Roles, g.Permissions); err != nil {
-		return err
-	}
-	return vc.placeholdersFromOneIdentity(g.When, g.PlaceholderNames())
-}
-
-type System struct {
-	// Map of roboteer system-scope roles. These can be referenced in the grants to deduplicate your config.
-	Roles map[string]SystemPermissions `yaml:"roles"`
-	// Map of permission grants. The map key is the grant "ID" (shown in audit logs).
-	// All matching grants add up; nothing denies.
-	Grants map[string]SystemGrant `yaml:"grants"`
-}
-
-func (s System) Validate(vc validationContext) error {
-	return validation.Errors{
-		"roles":  validateRoleDefs(s.Roles, vc.systemRoleRefs()),
-		"grants": vc.validateGrants(s.Grants),
-	}.Filter()
-}
-
-type SystemPermissions map[string][]string
-
-type SystemGrant struct {
-	When        When              `yaml:"when,omitempty"`
-	Roles       []Pattern         `yaml:"roles"`
-	Permissions SystemPermissions `yaml:"permissions"`
-}
-
-// PlaceholderNames returns the placeholder names used in any pattern of the grant.
-func (g SystemGrant) PlaceholderNames() map[string]bool {
-	return placeholderNamesIn(g.Roles)
-}
-
-func (g SystemGrant) Validate(vc validationContext) error {
-	err := validation.Errors{
-		"when":        validation.Validate(g.When, vc.whenRules()...),
-		"roles":       vc.validateRoles(g.Roles, vc.cfg.System.Roles),
-		"permissions": validation.Validate(g.Permissions, permissionRules[SystemPermissions]()...),
-	}.Filter()
-	if err != nil {
-		return err
-	}
-	if err := requireRolesOrPermissions(g.Roles, g.Permissions); err != nil {
-		return err
-	}
-	return vc.placeholdersFromOneIdentity(g.When, g.PlaceholderNames())
-}
-
-type When map[string]string
-
-// MatchesIdentity reports whether the identity has every claim in the [When],
-// with patterns matching the values.
-func (w When) MatchesIdentity(id Identity) bool {
-	for claim, value := range w {
-		pattern, ok := id[claim]
-		if !ok {
-			return false
+func newPermissions(entries []*permissionEntry) (Permissions, error) {
+	var p Permissions
+	for i, entry := range entries {
+		if entry == nil {
+			continue // from "if cond then entry" without an else
 		}
-		if _, ok := pattern.Match(value); !ok {
-			return false
+		if err := p.add(*entry); err != nil {
+			return Permissions{}, fmt.Errorf("permission %d: %w", i, err)
 		}
 	}
-	return true
+	return p, nil
+}
+
+func (p *Permissions) add(entry permissionEntry) error {
+	if len(entry.Access) == 0 {
+		return errors.New("access must not be empty")
+	}
+	switch entry.Kind {
+	case "system":
+		if entry.Namespace != "" {
+			return errors.New("system permissions can't have a namespace")
+		}
+		p.System.add(entry.Access)
+	case "project":
+		switch entry.Namespace {
+		case "":
+			return errors.New("project permissions require a namespace")
+		case "*":
+			p.AllProjects.add(entry.Access)
+		default:
+			if p.Projects == nil {
+				p.Projects = make(map[string]Access)
+			}
+			access := p.Projects[entry.Namespace]
+			access.add(entry.Access)
+			p.Projects[entry.Namespace] = access
+		}
+	default:
+		return fmt.Errorf(`unknown kind %q, must be "project" or "system"`, entry.Kind)
+	}
+	return nil
+}
+
+func (a *Access) add(other map[string][]string) {
+	if *a == nil {
+		*a = make(Access, len(other))
+	}
+	for resource, actions := range other {
+		merged := (*a)[resource]
+		merged.AddSeq(slices.Values(actions))
+		slices.Sort(merged)
+		(*a)[resource] = merged
+	}
 }

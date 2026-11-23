@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -91,7 +92,11 @@ func TestNewRobotCreateRequest(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			got := newRobotCreateRequest(RobotCreate{
-				NameBase: "repo:acme/foo", Project: "acme", RobotMetadata: test.metadata,
+				NameBase: "repo:acme/foo",
+				ProjectPermissions: map[string]Permissions{
+					"acme": {"repository": {"pull", "push"}},
+				},
+				RobotMetadata: test.metadata,
 			}, now, "abcd1234")
 			if got.Name != "repo-acme-foo-abcd1234" {
 				t.Errorf("name = %q, want %q", got.Name, "repo-acme-foo-abcd1234")
@@ -102,6 +107,19 @@ func TestNewRobotCreateRequest(t *testing.T) {
 			if got.Duration != test.duration {
 				t.Errorf("duration = %d, want %d", got.Duration, test.duration)
 			}
+			if got.Level != "system" {
+				t.Errorf("level = %q, want system", got.Level)
+			}
+			if len(got.Permissions) != 1 {
+				t.Fatalf("permissions = %d, want 1", len(got.Permissions))
+			}
+			permission := got.Permissions[0]
+			if permission.Kind != "project" || permission.Namespace != "acme" {
+				t.Errorf("permission = %q/%q, want project/acme", permission.Kind, permission.Namespace)
+			}
+			if len(permission.Access) != 2 {
+				t.Errorf("permission access = %d, want 2", len(permission.Access))
+			}
 		})
 	}
 }
@@ -109,6 +127,7 @@ func TestNewRobotCreateRequest(t *testing.T) {
 // fakeHarbor serves Harbor's API, passing each requested robot name to respond, which writes the response.
 func fakeHarbor(t *testing.T, respond func(w http.ResponseWriter, name string)) *Client {
 	t.Helper()
+	os.Clearenv() // Prevent proxy settings from redirecting local test traffic.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Name string `json:"name"`
@@ -139,8 +158,10 @@ func TestCreateRobotRetriesOnConflict(t *testing.T) {
 
 	created, err := c.CreateRobot(t.Context(), RobotCreate{
 		NameBase:    "repo:acme/foo",
-		Project:     "acme",
 		Description: "desc",
+		ProjectPermissions: map[string]Permissions{
+			"acme": {"repository": {"pull", "push"}},
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -170,8 +191,10 @@ func TestCreateRobotGivesUpAfterAttempts(t *testing.T) {
 
 	if _, err := c.CreateRobot(t.Context(), RobotCreate{
 		NameBase:    "repo:acme/foo",
-		Project:     "acme",
 		Description: "desc",
+		ProjectPermissions: map[string]Permissions{
+			"acme": {"repository": {"pull", "push"}},
+		},
 	}); !errors.Is(err, ErrRobotExists) {
 		t.Fatalf("err = %v, want ErrRobotExists", err)
 	}

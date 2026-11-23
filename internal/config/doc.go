@@ -1,28 +1,23 @@
-// Package config loads, watches and validates the roboteer config file.
+// Package config loads and evaluates the roboteer Jsonnet config.
 //
-// # Vocabulary
+// The config file must evaluate to a function that takes the JWT claims as
+// its "claims" parameter, and returns a list of permissions. Null entries are
+// dropped, so conditional entries can be written as "if cond then entry"
+// without an else branch:
 //
-//   - JWT: the OIDC token a CI job sends to roboteer.
-//   - Claim: a key in the JWT, such as "repository_owner".
-//   - Identity: a map of claim names to [Pattern]s. A JWT is matched against
-//     exactly one identity, where every claim of the identity must match.
-//   - Pattern: plain text mixed with captures, such as "acme/{repo}".
-//   - Capture: a "{name}" in an identity's pattern. Captures the part of the
-//     claim value it matches. The name inside the braces is the capture name.
-//   - Placeholder: a "{name}" in a grant's pattern, such as in "{repo}-images".
-//     Filled in using the matched identity. The name must be either a claim name
-//     or a capture name of that identity.
-//   - Available names: an identity's claim names plus its capture names.
-//     Every placeholder in a grant must be in the available names
-//     of one single identity that also matches the grant's "when".
-//   - Grant: a rule that gives roles and/or permissions, identified by its ID.
-//     Optionally narrowed by a "when".
-//   - When: literal claim values, without placeholders, that a grant additionally requires.
-//     Without any configured identities, the "when" acts as the identity.
+//	function(claims) [
+//	  { kind: 'project', namespace: 'acme-shared', access: { repository: ['pull'] } },
+//	  if claims.repository == 'acme/scanner' then
+//	    { kind: 'project', namespace: '*', access: { repository: ['pull'] } },
+//	]
 //
-// # Example
+// Each permission has these fields:
 //
-// Given the identity {repository: "acme/{repo}"} and the JWT claim
-// repository=acme/web, the capture "repo" is "web". A grant with
-// projects: ["{repo}-images"] then applies to the project "web-images".
+//   - kind: "project" or "system".
+//   - namespace: the project name, or "*" for all projects.
+//     Required for "project", not allowed for "system".
+//   - access: Harbor resource to list of actions, such as {repository: ["pull"]}.
+//
+// Permissions for the same project are merged. An empty list grants nothing,
+// so the token is rejected. Imports are resolved relative to the importing file.
 package config

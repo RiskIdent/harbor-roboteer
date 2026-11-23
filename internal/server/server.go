@@ -21,16 +21,16 @@ import (
 const readHeaderTimeout = 10 * time.Second
 
 type Server struct {
-	version       string
-	router        *http.ServeMux
-	server        *http.Server
-	listener      net.Listener
-	log           *slog.Logger
-	robotOps      *prometheus.CounterVec // robot account operations in Harbor, by operation and result
-	httpMetrics   *httpMetrics
-	harbor        harborClient
-	configWatcher configWatcher
-	jwtOpts       []jwt.ParseOption // key set, issuer and audience to verify caller tokens
+	version     string
+	router      *http.ServeMux
+	server      *http.Server
+	listener    net.Listener
+	log         *slog.Logger
+	robotOps    *prometheus.CounterVec // robot account operations in Harbor, by operation and result
+	httpMetrics *httpMetrics
+	harbor      harborClient
+	config      *config.Config
+	jwtOpts     []jwt.ParseOption // key set, issuer and audience to verify caller tokens
 }
 
 type harborClient interface {
@@ -41,16 +41,11 @@ type harborClient interface {
 	Ping(ctx context.Context) error
 }
 
-type configWatcher interface {
-	Config() *config.Config
-	IsWatching() bool
-}
-
 type IServer interface {
 	Start(ctx context.Context) error
 }
 
-func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClient, cfg configWatcher, jwtOpts ...jwt.ParseOption) (*Server, error) {
+func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClient, cfg *config.Config, jwtOpts ...jwt.ParseOption) (*Server, error) {
 	r := http.NewServeMux()
 	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 	if err != nil {
@@ -77,13 +72,13 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClie
 				httpMetrics.Middleware, // must stay last: reads r.Pattern
 			),
 		},
-		listener:      l,
-		log:           log,
-		robotOps:      robotOps,
-		httpMetrics:   httpMetrics,
-		harbor:        hc,
-		configWatcher: cfg,
-		jwtOpts:       jwtOpts,
+		listener:    l,
+		log:         log,
+		robotOps:    robotOps,
+		httpMetrics: httpMetrics,
+		harbor:      hc,
+		config:      cfg,
+		jwtOpts:     jwtOpts,
 	}
 	s.registerHandlers()
 	return s, nil

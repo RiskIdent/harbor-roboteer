@@ -18,7 +18,11 @@ paths:
     post:
       operationId: postRobot
       summary: Create robot account
-      description: Use JWT claims to create a new Harbor robot account
+      description: >-
+        Use JWT to create a new Harbor robot account.
+        Project, all-project, and system permissions are resolved by evaluating
+        the roboteer Jsonnet configuration with the JWT claims;
+        the permissions cannot be selected by the client's HTTP request.
       security:
         - JWT: []
       requestBody:
@@ -38,10 +42,22 @@ paths:
           $ref: "#/components/responses/Error"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The roboteer configuration grants no permissions to the JWT
+          content:
+            text/plain:
+              schema:
+                type: string
         "409":
           $ref: "#/components/responses/Error"
         "413":
           description: Request body is larger than 64 KiB
+          content:
+            text/plain:
+              schema:
+                type: string
+        "500":
+          description: Failed to evaluate permissions from the roboteer configuration
           content:
             text/plain:
               schema:
@@ -130,8 +146,6 @@ components:
   schemas:
     PostRobotRequest:
       type: object
-      required:
-        - project
       properties:
         name:
           type: string
@@ -140,9 +154,6 @@ components:
             The name is transformed into lowercase, characters other than `a-z` and `0-9` become `-`,
             and a random suffix is added to avoid collisions.
           example: my-robot-account-name
-        project:
-          type: string
-          description: Harbor project to create the robot account in.
     PostRobotResponse:
       type: object
       required:
@@ -165,6 +176,7 @@ components:
           format: int64
         username:
           type: string
-          example: robot$my-project+my-robot-account-name-19sajdk2
+          description: Harbor global robot account username.
+          example: robot$my-robot-account-name-19sajdk2
         password:
           type: string
