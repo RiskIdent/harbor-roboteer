@@ -59,7 +59,7 @@ jobs:
             echo "$file was changed"
           done
 
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           install_args: actionlint
@@ -106,7 +106,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         with:
           install_args: gitlab:greut/eclint
           cache_key_prefix: mise-v1-eclint
@@ -117,7 +117,7 @@ jobs:
       - name: Run eclint
         run: mise x gitlab:greut/eclint -- eclint -fix
 
-      - uses: reviewdog/action-suggester@ac5ce6d94e35c00530447dc63c271e38e4fd36c6 # v1.26.3
+      - uses: reviewdog/action-suggester@fd22a83b1ebc13fd8aee5d57b06793fce6f20fb9 # v1.27.1
         if: always()
         with:
           tool_name: eclint
@@ -179,7 +179,7 @@ jobs:
             echo "$file was changed"
           done
 
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           install_args: rumdl
@@ -189,7 +189,7 @@ jobs:
         if: steps.changed-files.outputs.any_changed == 'true'
         run: mise x rumdl -- rumdl check --output-format github --fix
 
-      - uses: reviewdog/action-suggester@ac5ce6d94e35c00530447dc63c271e38e4fd36c6 # v1.26.3
+      - uses: reviewdog/action-suggester@fd22a83b1ebc13fd8aee5d57b06793fce6f20fb9 # v1.27.1
         if: steps.changed-files.outputs.any_changed == 'true' && always()
         with:
           tool_name: rumdl
@@ -210,7 +210,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         with:
           install_args: typos
           cache_key_prefix: mise-v1-typos
@@ -218,7 +218,7 @@ jobs:
       - name: Spell Check Repo
         run: mise x typos -- typos --write-changes --color always
 
-      - uses: reviewdog/action-suggester@ac5ce6d94e35c00530447dc63c271e38e4fd36c6 # v1.26.3
+      - uses: reviewdog/action-suggester@fd22a83b1ebc13fd8aee5d57b06793fce6f20fb9 # v1.27.1
         if: always()
         with:
           tool_name: typos
@@ -255,7 +255,7 @@ jobs:
             echo "$file was changed"
           done
 
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           install_args: go
@@ -311,7 +311,7 @@ jobs:
             echo "$file was changed"
           done
 
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           install_args: go golangci-lint
@@ -332,7 +332,7 @@ jobs:
             ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
             ${{ runner.os }}-go-
 
-      - uses: reviewdog/action-suggester@ac5ce6d94e35c00530447dc63c271e38e4fd36c6 # v1.26.3
+      - uses: reviewdog/action-suggester@fd22a83b1ebc13fd8aee5d57b06793fce6f20fb9 # v1.27.1
         if: always()
         with:
           tool_name: golangci-lint
@@ -374,7 +374,7 @@ jobs:
             echo "$file was changed"
           done
 
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           install: false
@@ -386,7 +386,7 @@ jobs:
 
       - name: suggester / mise fmt
         if: steps.changed-files.outputs.any_changed == 'true'
-        uses: reviewdog/action-suggester@ac5ce6d94e35c00530447dc63c271e38e4fd36c6 # v1.26.3
+        uses: reviewdog/action-suggester@fd22a83b1ebc13fd8aee5d57b06793fce6f20fb9 # v1.27.1
         with:
           tool_name: mise fmt
           fail_level: error
@@ -424,7 +424,7 @@ jobs:
             echo "$file was changed"
           done
 
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           install_args: hk
@@ -465,7 +465,7 @@ jobs:
             echo "$file was changed"
           done
 
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           install_args: helm
