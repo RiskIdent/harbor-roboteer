@@ -47,7 +47,9 @@ spec:
           args:
             - serve
             - --addr=:{{ .Values.service.port }}
+            {{- if .Values.metrics.enabled }}
             - --metrics-addr=:{{ .Values.metrics.port }}
+            {{- end }}
             - --log-level={{ .Values.logLevel }}
             - --config=/etc/harbor-roboteer/roboteer.jsonnet
             {{- with .Values.args }}
@@ -65,9 +67,11 @@ spec:
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
+            {{- if .Values.metrics.enabled }}
             - name: metrics
               containerPort: {{ .Values.metrics.port }}
               protocol: TCP
+            {{- end }}
           {{- with .Values.livenessProbe }}
           livenessProbe:
             {{- toYaml . | nindent 12 }}

@@ -246,6 +246,9 @@
     "metrics": {
       "type": "object",
       "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
         "port": {
           "type": "integer",
           "maximum": 65535,

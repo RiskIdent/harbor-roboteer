@@ -22,6 +22,7 @@ spec:
       from:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+    {{- if .Values.metrics.enabled }}
     - ports:
         - port: metrics
           protocol: TCP
@@ -29,6 +30,7 @@ spec:
       from:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+    {{- end }}
   {{- with .Values.networkPolicy.egress }}
   egress:
     {{- toYaml . | nindent 4 }}
