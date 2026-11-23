@@ -75,8 +75,7 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	tok, err := jwt.ParseRequest(r, s.jwtOpts...)
 	if err != nil {
-		s.log.ErrorContext(ctx, "parse token")
-		s.log.DebugContext(ctx, "reject token", slog.Any("error", err))
+		s.log.ErrorContext(ctx, "reject token", slog.Any("error", err))
 		w.Header().Set("WWW-Authenticate", "Bearer")
 		http.Error(w, "invalid or missing token", http.StatusUnauthorized)
 		return
