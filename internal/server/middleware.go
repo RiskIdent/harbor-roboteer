@@ -53,14 +53,20 @@ func (rw *responseWriter) Unwrap() http.ResponseWriter {
 	return rw.ResponseWriter
 }
 
-func LoggingMiddleware(logger *slog.Logger) Middleware {
+func LoggingMiddleware(logger *slog.Logger, unloggedPaths ...string) Middleware {
+	skip := matchesAny(unloggedPaths)
 	return func(next http.Handler) http.Handler {
-		return loggingHandler(logger, next)
+		return loggingHandler(logger, next, skip)
 	}
 }
 
-func loggingHandler(logger *slog.Logger, next http.Handler) http.Handler {
+func loggingHandler(logger *slog.Logger, next http.Handler, skip func(*http.Request) bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if skip(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		start := time.Now()
 
 		// Create a custom response writer to capture status code

@@ -69,7 +69,7 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClie
 			ReadHeaderTimeout: readHeaderTimeout,
 			Handler: ChainMiddlewares(r,
 				TracingMiddleware(unmonitoredPaths...),
-				LoggingMiddleware(log),
+				LoggingMiddleware(log, unmonitoredPaths...),
 				httpMetrics.Middleware, // must stay last: reads r.Pattern
 			),
 		},
