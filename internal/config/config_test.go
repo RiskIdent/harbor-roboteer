@@ -70,6 +70,10 @@ func TestEvaluateErrors(t *testing.T) {
 		{name: "project without namespace", source: `function(claims) [{ kind: 'project', access: { a: ['b'] } }]`},
 		{name: "system with namespace", source: `function(claims) [{ kind: 'system', namespace: 'x', access: { a: ['b'] } }]`},
 		{name: "empty access", source: `function(claims) [{ kind: 'system', access: {} }]`},
+		{name: "empty actions", source: `function(claims) [{ kind: 'system', access: { a: [] } }]`},
+		{name: "null actions", source: `function(claims) [{ kind: 'system', access: { a: null } }]`},
+		{name: "empty action", source: `function(claims) [{ kind: 'system', access: { a: [''] } }]`},
+		{name: "empty resource", source: `function(claims) [{ kind: 'system', access: { '': ['b'] } }]`},
 		{name: "missing claim", source: `function(claims) [claims.missing]`},
 	}
 	for _, test := range tests {

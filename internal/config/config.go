@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -146,8 +147,8 @@ func newPermissions(entries []*permissionEntry) (Permissions, error) {
 }
 
 func (p *Permissions) add(entry permissionEntry) error {
-	if len(entry.Access) == 0 {
-		return errors.New("access must not be empty")
+	if err := validateAccess(entry.Access); err != nil {
+		return err
 	}
 	switch entry.Kind {
 	case "system":
@@ -171,6 +172,25 @@ func (p *Permissions) add(entry permissionEntry) error {
 		}
 	default:
 		return fmt.Errorf(`unknown kind %q, must be "project" or "system"`, entry.Kind)
+	}
+	return nil
+}
+
+func validateAccess(access map[string][]string) error {
+	if len(access) == 0 {
+		return errors.New("access must not be empty")
+	}
+	for _, resource := range slices.Sorted(maps.Keys(access)) {
+		if resource == "" {
+			return errors.New("access resource must not be empty")
+		}
+		actions := access[resource]
+		if len(actions) == 0 {
+			return fmt.Errorf("access %q must have at least one action", resource)
+		}
+		if slices.Contains(actions, "") {
+			return fmt.Errorf("access %q must not have an empty action", resource)
+		}
 	}
 	return nil
 }
