@@ -117,6 +117,7 @@ to quickly create a Cobra application.`,
 			jwt.WithKeySet(keys.Set),
 			jwt.WithIssuer(opt.OIDCIssuer),
 			jwt.WithAudience(opt.OIDCAudience),
+			jwt.WithAcceptableSkew(time.Minute),
 		)
 		if err != nil {
 			return err
