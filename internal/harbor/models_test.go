@@ -100,7 +100,7 @@ func TestRobotMetadataString(t *testing.T) {
 				ManagedBy:   "harbor-roboteer",
 			},
 			want: "desc: hello\n" +
-				"earlyExpiry: 2026-11-18T12:00:00Z\n" +
+				"expiry: 2026-11-18T12:00:00Z\n" +
 				"deleteToken: heyomayo\n" +
 				"managedBy: harbor-roboteer",
 		},
@@ -128,12 +128,12 @@ func TestParseRobotMetadata(t *testing.T) {
 		{name: "malformed yaml", input: "desc: [", want: RobotMetadata{Description: "desc: ["}},
 		{
 			name:  "yaml metadata",
-			input: "desc: hello\nearlyExpiry: 2026-11-18T13:00:00Z\ndeleteToken: token\nmanagedBy: roboteer\n",
+			input: "desc: hello\nexpiry: 2026-11-18T13:00:00Z\ndeleteToken: token\nmanagedBy: roboteer\n",
 			want:  RobotMetadata{Description: "hello", Expiry: early, DeleteToken: "token", ManagedBy: "roboteer"},
 		},
 		{
 			name:     "early expiry overrides duration",
-			input:    "earlyExpiry: 2026-11-18T13:00:00Z\n",
+			input:    "expiry: 2026-11-18T13:00:00Z\n",
 			duration: new(int64(2)),
 			want:     RobotMetadata{Expiry: early},
 		},

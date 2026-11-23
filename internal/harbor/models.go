@@ -97,7 +97,7 @@ type Robot struct {
 
 type RobotMetadata struct {
 	Description string    `yaml:"desc,omitempty"`
-	Expiry      time.Time `yaml:"earlyExpiry,omitempty"`
+	Expiry      time.Time `yaml:"expiry,omitempty"`
 	DeleteToken string    `yaml:"deleteToken,omitempty"`
 	ManagedBy   string    `yaml:"managedBy,omitempty"`
 }

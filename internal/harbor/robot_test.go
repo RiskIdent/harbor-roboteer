@@ -84,7 +84,7 @@ func TestNewRobotCreateRequest(t *testing.T) {
 			},
 			duration: 2,
 			description: "desc: hello\n" +
-				"earlyExpiry: 2026-11-19T13:00:00Z\n" +
+				"expiry: 2026-11-19T13:00:00Z\n" +
 				"deleteToken: sha256:token\n" +
 				"managedBy: roboteer",
 		},
