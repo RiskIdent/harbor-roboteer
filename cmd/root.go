@@ -12,13 +12,11 @@ import (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "harbor-roboteer",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Short: "Manage Harbor robot accounts for OIDC-authenticated workloads.",
+	Long: `harbor-roboteer maps OIDC tokens to Harbor robot accounts, allowing workloads
+to authenticate to Harbor without long-lived credentials.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+Use the serve subcommand to start the API and metrics servers.`,
 	SilenceUsage: true,
 }
 
