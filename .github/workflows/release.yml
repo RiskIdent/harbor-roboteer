@@ -27,6 +27,9 @@ jobs:
       artifact-metadata: write # for signing
       id-token: write # for using GitHub IdP (when signing)
 
+    outputs:
+      artifacts: ${{ steps.goreleaser.outputs.artifacts }}
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -143,11 +146,19 @@ jobs:
           PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: echo "$PASSWORD" | helm registry login ghcr.io --username "$USERNAME" --password-stdin
 
+      - name: Try package chart
+        if: github.event_name != 'push' || !startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -x
+          ./hack/helm-chart-set-version.sh "v0.1.0"
+
       - name: Package and release chart
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         env:
           VERSION: ${{ github.ref_name }}
+          GORELEASER_ARTIFACTS: ${{ needs.release.outputs.artifacts }}
         run: |
           set -x
-          helm package ./helm/harbor-roboteer --version "${VERSION#v}" --app-version "$VERSION"
+          ./hack/helm-chart-set-version.sh "$VERSION"
+          helm package ./helm/harbor-roboteer
           helm push "./harbor-roboteer-${VERSION#v}.tgz" oci://ghcr.io/RiskIdent
