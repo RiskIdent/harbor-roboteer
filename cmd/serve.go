@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/RiskIdent/harbor-roboteer/internal/config"
 	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
@@ -26,16 +27,17 @@ import (
 )
 
 type ServeOptions struct {
-	Config         string   `koanf:"config"`
-	Addr           string   `koanf:"addr"`
-	MetricsAddr    string   `koanf:"metrics-addr"`
-	LogLevel       string   `koanf:"log-level"`
-	LogFormat      string   `koanf:"log-format"`
-	HarborURL      *url.URL `koanf:"harbor-url"`
-	HarborUsername string   `koanf:"harbor-username"`
-	HarborPassword string   `koanf:"harbor-password"`
-	OIDCIssuer     string   `koanf:"oidc-issuer"`
-	OIDCAudience   string   `koanf:"oidc-audience"`
+	Config         string        `koanf:"config"`
+	Addr           string        `koanf:"addr"`
+	MetricsAddr    string        `koanf:"metrics-addr"`
+	LogLevel       string        `koanf:"log-level"`
+	LogFormat      string        `koanf:"log-format"`
+	HarborURL      *url.URL      `koanf:"harbor-url"`
+	HarborUsername string        `koanf:"harbor-username"`
+	HarborPassword string        `koanf:"harbor-password"`
+	OIDCIssuer     string        `koanf:"oidc-issuer"`
+	OIDCAudience   string        `koanf:"oidc-audience"`
+	EarlyExpiry    time.Duration `koanf:"early-expiry"`
 
 	Help bool `koanf:"help"` // ignored, but added to keep "ErrorUnused" happy
 }
@@ -49,6 +51,7 @@ var ServeDefaults = ServeOptions{
 	HarborURL:   &url.URL{},
 
 	OIDCAudience: "harbor-roboteer",
+	EarlyExpiry:  time.Hour,
 }
 
 // serveCmd represents the serve command
@@ -110,6 +113,7 @@ to quickly create a Cobra application.`,
 		defer func() { _ = keys.Close(context.WithoutCancel(ctx)) }()
 
 		s, err := server.NewServer(ctx, opt.Addr, log, hc, cfg,
+			opt.EarlyExpiry,
 			jwt.WithKeySet(keys.Set),
 			jwt.WithIssuer(opt.OIDCIssuer),
 			jwt.WithAudience(opt.OIDCAudience),
@@ -148,6 +152,7 @@ func init() {
 	serveCmd.Flags().String("harbor-password", ServeDefaults.HarborPassword, "Harbor password, prefer the env var, env: $ROBOTEER_HARBOR_PASSWORD")
 	serveCmd.Flags().String("oidc-issuer", ServeDefaults.OIDCIssuer, "OIDC issuer URL, e.g. https://token.actions.githubusercontent.com, env: $ROBOTEER_OIDC_ISSUER")
 	serveCmd.Flags().String("oidc-audience", ServeDefaults.OIDCAudience, "required token audience, e.g. harbor-roboteer, env: $ROBOTEER_OIDC_AUDIENCE")
+	serveCmd.Flags().Duration("early-expiry", ServeDefaults.EarlyExpiry, "early expiry duration for robot accounts, env: $ROBOTEER_EARLY_EXPIRY")
 }
 
 func LoadServeOptions(flags *pflag.FlagSet) (*ServeOptions, error) {

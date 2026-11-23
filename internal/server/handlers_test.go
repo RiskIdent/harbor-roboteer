@@ -44,6 +44,7 @@ func TestBuildRobotCreate(t *testing.T) {
 		Name:        "requested-name",
 		DeleteToken: "delete-token",
 		Version:     "v1.2.3",
+		EarlyExpiry: 2 * time.Hour,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -55,7 +56,7 @@ func TestBuildRobotCreate(t *testing.T) {
 		},
 		AllProjectPermissions: harbor.Permissions{"resource": {"all-project-action"}},
 		SystemPermissions:     harbor.Permissions{"resource": {"system-action"}},
-		EarlyExpiry:           fixedNow.Add(time.Hour),
+		EarlyExpiry:           fixedNow.Add(2 * time.Hour),
 		Description:           `Robot account for OIDC user "oidc-user"`,
 		DeleteToken:           "sha256:798a0ba5da468a14f0f9a0269b2f0ee010ff23b764d0e2ddd83381590da87bb0",
 		ManagedBy:             "harbor-roboteer v1.2.3",
