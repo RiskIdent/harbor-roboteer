@@ -112,7 +112,7 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 		Name:        name,
 		DeleteToken: deleteToken,
 		Version:     s.version,
-		EarlyExpiry: s.earlyExpiry,
+		RobotTTL:    s.robotTTL,
 	})
 	if errors.Is(err, errNoPermissions) {
 		s.log.ErrorContext(ctx, "reject token", slog.String("sub", sub), slog.Any("error", err))
@@ -160,7 +160,7 @@ type robotCreateOptions struct {
 	Name        string
 	DeleteToken string
 	Version     string
-	EarlyExpiry time.Duration
+	RobotTTL    time.Duration
 }
 
 func buildRobotCreate(options robotCreateOptions) (harbor.RobotCreate, config.Permissions, error) {
@@ -178,7 +178,7 @@ func buildRobotCreate(options robotCreateOptions) (harbor.RobotCreate, config.Pe
 		ProjectPermissions:    harborProjectPermissions(permissions.Projects),
 		AllProjectPermissions: harborPermissions(permissions.AllProjects),
 		SystemPermissions:     harborPermissions(permissions.System),
-		EarlyExpiry:           now().Add(options.EarlyExpiry),
+		Expiry:                now().Add(options.RobotTTL),
 		Description:           fmt.Sprintf("Robot account for OIDC user %q", cmp.Or(options.Subject, "(unknown JWT sub)")),
 		DeleteToken:           deleteTokenPrefix + hex.EncodeToString(hash[:]),
 		ManagedBy:             "harbor-roboteer " + options.Version,

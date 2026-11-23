@@ -97,7 +97,7 @@ func newRobotCreateRequest(robot RobotCreate, now time.Time, suffix string) *mod
 	return &models.RobotCreate{
 		Name:        normalizeRobotName(robot.NameBase, suffix),
 		Description: robot.RobotMetadata.String(), //nolint:staticcheck // want to be explicit that we take the String from the embedded metadata only
-		Duration:    daysUntil(now, robot.EarlyExpiry),
+		Duration:    daysUntil(now, robot.Expiry),
 		Level:       "system",
 		Permissions: robot.RobotPermissions(),
 	}

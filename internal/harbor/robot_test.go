@@ -78,7 +78,7 @@ func TestNewRobotCreateRequest(t *testing.T) {
 			name: "rounded expiry",
 			metadata: RobotMetadata{
 				Description: "hello",
-				EarlyExpiry: now.Add(25 * time.Hour),
+				Expiry:      now.Add(25 * time.Hour),
 				DeleteToken: "sha256:token",
 				ManagedBy:   "roboteer",
 			},
