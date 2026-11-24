@@ -38,6 +38,27 @@
         }
       }
     },
+    "cleanup": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "resources": {
+          "allOf": [
+            {
+              "type": "object"
+            },
+            {
+              "$ref": "#/$defs/schema-utils.yaml/definitions/resources"
+            }
+          ]
+        },
+        "schedule": {
+          "type": "string"
+        }
+      }
+    },
     "commonLabels": {
       "type": "object",
       "additionalProperties": {

@@ -184,6 +184,14 @@ metrics:
 # Log level of the app, passed as --log-level.
 logLevel: info # @schema enum:[debug, info, warn, error]
 
+# CronJob that runs "harbor-roboteer cleanup" to delete expired robot accounts created by harbor-roboteer.
+# It uses the same image, env, envFrom, logLevel, service account and scheduling settings as the server.
+cleanup:
+  enabled: true
+  # Cron schedule, see https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-syntax
+  schedule: "0 * * * *"
+  resources: {} # @schema $ref: ./schema-utils.yaml#/definitions/resources
+
 # Jsonnet config mapping token claims to Harbor permissions, see roboteer.jsonnet in the repo.
 # Stored in a ConfigMap and passed as --config. Set it from a file with:
 #   helm install ... --set-file config=roboteer.jsonnet
