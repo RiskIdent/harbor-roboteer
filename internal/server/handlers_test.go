@@ -50,7 +50,7 @@ func TestRoutes(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.method+" "+test.path, func(t *testing.T) {
 			response := httptest.NewRecorder()
-			s.server.Handler.ServeHTTP(response, httptest.NewRequest(test.method, test.path, nil))
+			s.server.Handler.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), test.method, test.path, nil))
 			if response.Code != test.want {
 				t.Errorf("status = %d, want %d", response.Code, test.want)
 			}
@@ -60,11 +60,11 @@ func TestRoutes(t *testing.T) {
 	logs.Reset()
 	hc.err = errors.New("ping failed")
 	response := httptest.NewRecorder()
-	s.server.Handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/roboteer/v1/health", nil))
+	s.server.Handler.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/roboteer/v1/health", nil))
 	if response.Code != http.StatusServiceUnavailable {
 		t.Errorf("unhealthy status = %d, want %d", response.Code, http.StatusServiceUnavailable)
 	}
-	if !s.httpMetrics.skip(httptest.NewRequest(http.MethodGet, "/api/roboteer/v1/health", nil)) {
+	if !s.httpMetrics.skip(httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/roboteer/v1/health", nil)) {
 		t.Error("health path should be excluded from monitoring")
 	}
 	if bytes.Contains(logs.Bytes(), []byte("msg=request")) {
