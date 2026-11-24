@@ -28,7 +28,7 @@ func (h pingHarbor) Ping(context.Context) error {
 func TestRoutes(t *testing.T) {
 	var logs bytes.Buffer
 	hc := &pingHarbor{}
-	s, err := NewServer(t.Context(), "127.0.0.1:0", slog.New(slog.NewTextHandler(&logs, nil)), hc, nil, time.Hour)
+	s, err := NewServer(t.Context(), ServerOptions{Addr: "127.0.0.1:0", Log: slog.New(slog.NewTextHandler(&logs, nil)), Harbor: hc})
 	if err != nil {
 		t.Fatal(err)
 	}
