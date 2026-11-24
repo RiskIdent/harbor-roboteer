@@ -10,6 +10,13 @@ spec:
   schedule: {{ .Values.cleanup.schedule | quote }}
   concurrencyPolicy: Forbid
   jobTemplate:
+    metadata:
+      labels:
+        {{- include "harbor-roboteer.labels" . | nindent 8 }}
+        app.kubernetes.io/component: cleanup
+        {{- with .Values.commonLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       template:
         metadata:
