@@ -14,7 +14,6 @@ import (
 	"maps"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/RiskIdent/harbor-roboteer/internal/config"
@@ -77,22 +76,22 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.Log.ErrorContext(ctx, "reject token", slog.Any("error", err))
 		w.Header().Set("WWW-Authenticate", "Bearer")
-		http.Error(w, "invalid or missing token", http.StatusUnauthorized)
+		writeProblem(w, http.StatusUnauthorized, "invalid or missing token")
 		return
 	}
 
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	if err != nil {
 		if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
-			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			writeProblem(w, http.StatusRequestEntityTooLarge, "request body too large")
 			return
 		}
-		http.Error(w, "body must be valid JSON", http.StatusBadRequest)
+		writeProblem(w, http.StatusBadRequest, "body must be valid JSON")
 		return
 	}
 	var req postRobotRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		http.Error(w, "body must be valid JSON", http.StatusBadRequest)
+		writeProblem(w, http.StatusBadRequest, "body must be valid JSON")
 		return
 	}
 	sub, _ := tok.Subject()
@@ -126,7 +125,7 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	created, err := s.Harbor.CreateRobot(ctx, robot)
 	s.countRobotOp("create", err)
 	if errors.Is(err, harbor.ErrRobotExists) {
-		http.Error(w, err.Error(), http.StatusConflict)
+		writeProblem(w, http.StatusConflict, err.Error())
 		return
 	}
 	if err != nil {
@@ -211,19 +210,19 @@ func (s *Server) deleteRobot(w http.ResponseWriter, r *http.Request) {
 	token, ok := bearerToken(r)
 	if !ok {
 		w.Header().Set("WWW-Authenticate", "Bearer")
-		http.Error(w, "Authorization: Bearer <delete token> header is required", http.StatusUnauthorized)
+		writeProblem(w, http.StatusUnauthorized, "Authorization: Bearer <delete token> header is required")
 		return
 	}
 
 	robotID, err := strconv.ParseInt(r.URL.Query().Get("robot_id"), 10, 64)
 	if err != nil {
-		http.Error(w, "robot_id query parameter must be an integer", http.StatusBadRequest)
+		writeProblem(w, http.StatusBadRequest, "robot_id query parameter must be an integer")
 		return
 	}
 
 	rb, err := s.Harbor.GetRobotByID(ctx, robotID)
 	if errors.Is(err, harbor.ErrRobotNotFound) {
-		http.Error(w, errInvalidDeleteCombo, http.StatusForbidden)
+		writeProblem(w, http.StatusForbidden, errInvalidDeleteCombo)
 		return
 	}
 	if err != nil {
@@ -235,14 +234,14 @@ func (s *Server) deleteRobot(w http.ResponseWriter, r *http.Request) {
 	hash := sha256.Sum256([]byte(token))
 	want := deleteTokenPrefix + hex.EncodeToString(hash[:])
 	if subtle.ConstantTimeCompare([]byte(rb.DeleteToken), []byte(want)) != 1 {
-		http.Error(w, errInvalidDeleteCombo, http.StatusForbidden)
+		writeProblem(w, http.StatusForbidden, errInvalidDeleteCombo)
 		return
 	}
 
 	err = s.Harbor.DeleteRobot(ctx, robotID)
 	s.countRobotOp("delete", err)
 	if errors.Is(err, harbor.ErrRobotNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		writeProblem(w, http.StatusNotFound, err.Error())
 		return
 	}
 	if err != nil {
@@ -270,13 +269,4 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-}
-
-func bearerToken(r *http.Request) (string, bool) {
-	scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
-	if !ok || !strings.EqualFold(scheme, "Bearer") {
-		return "", false
-	}
-	token = strings.TrimLeft(token, " ")
-	return token, token != ""
 }

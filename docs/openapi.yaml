@@ -45,23 +45,23 @@ paths:
         "403":
           description: The roboteer configuration grants no permissions to the JWT
           content:
-            text/plain:
+            application/problem+json:
               schema:
-                type: string
+                $ref: "#/components/schemas/Problem"
         "409":
           $ref: "#/components/responses/Error"
         "413":
           description: Request body is larger than 64 KiB
           content:
-            text/plain:
+            application/problem+json:
               schema:
-                type: string
+                $ref: "#/components/schemas/Problem"
         "500":
           description: Failed to evaluate permissions from the roboteer configuration
           content:
-            text/plain:
+            application/problem+json:
               schema:
-                type: string
+                $ref: "#/components/schemas/Problem"
         "502":
           $ref: "#/components/responses/Error"
     delete:
@@ -93,9 +93,9 @@ paths:
             Invalid combination of robot ID and delete token.
             Either the robot account doesn't exist, or the delete token is wrong.
           content:
-            text/plain:
+            application/problem+json:
               schema:
-                type: string
+                $ref: "#/components/schemas/Problem"
         "404":
           $ref: "#/components/responses/Error"
         "502":
@@ -129,9 +129,9 @@ components:
     Error:
       description: Error
       content:
-        text/plain:
+        application/problem+json:
           schema:
-            type: string
+            $ref: "#/components/schemas/Problem"
     Unauthorized:
       description: Unauthorized
       headers:
@@ -140,9 +140,9 @@ components:
             type: string
             example: Bearer
       content:
-        text/plain:
+        application/problem+json:
           schema:
-            type: string
+            $ref: "#/components/schemas/Problem"
   schemas:
     PostRobotRequest:
       type: object
@@ -180,3 +180,22 @@ components:
           example: robot$my-robot-account-name-19sajdk2
         password:
           type: string
+    Problem:
+      type: object
+      description: Problem Details
+      required:
+        - title
+        - status
+      properties:
+        title:
+          type: string
+          description: HTTP status text of the response.
+          example: Bad Request
+        status:
+          type: integer
+          description: HTTP status code of the response.
+          example: 400
+        detail:
+          type: string
+          description: Explanation of this specific error.
+          example: body must be valid JSON
