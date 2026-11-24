@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "harbor-roboteer.fullname" . | trunc 44 | trimSuffix "-" }}-cleanup
+  name: {{ include "harbor-roboteer.cleanupFullname" . }}
   labels:
     {{- include "harbor-roboteer.labels" . | nindent 4 }}
     app.kubernetes.io/component: cleanup
@@ -14,9 +14,6 @@ spec:
       labels:
         {{- include "harbor-roboteer.labels" . | nindent 8 }}
         app.kubernetes.io/component: cleanup
-        {{- with .Values.commonLabels }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
     spec:
       template:
         metadata:
@@ -25,9 +22,7 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           labels:
-            app.kubernetes.io/name: {{ include "harbor-roboteer.name" . }}-cleanup
-            app.kubernetes.io/instance: {{ .Release.Name }}
-            app.kubernetes.io/component: cleanup
+            {{- include "harbor-roboteer.cleanupSelectorLabels" . | nindent 12 }}
             {{- with .Values.commonLabels }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
