@@ -63,3 +63,20 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Name of the cleanup CronJob and its NetworkPolicy. CronJob names are limited to 52 chars.
+*/}}
+{{- define "harbor-roboteer.cleanupFullname" -}}
+{{- include "harbor-roboteer.fullname" . | trunc 44 | trimSuffix "-" }}-cleanup
+{{- end }}
+
+{{/*
+Cleanup pod selector labels. Deliberately not matching "harbor-roboteer.selectorLabels",
+so the server Service and NetworkPolicy don't select cleanup pods.
+*/}}
+{{- define "harbor-roboteer.cleanupSelectorLabels" -}}
+app.kubernetes.io/name: {{ include "harbor-roboteer.name" . }}-cleanup
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: cleanup
+{{- end }}
