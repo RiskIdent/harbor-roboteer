@@ -46,3 +46,23 @@ func TestLoadServeOptionsRobotTTL(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadOptionsEnvOfOtherSubcommand(t *testing.T) {
+	t.Setenv("ROBOTEER_HARBOR_URL", "https://harbor.example.com")
+	t.Setenv("ROBOTEER_OIDC_ISSUER", "https://issuer.example.com") // only known by "serve"
+	flags := pflag.NewFlagSet("cleanup", pflag.ContinueOnError)
+	addCommonFlags(flags)
+
+	var o CommonOptions
+	if err := LoadOptions(flags, &o); err != nil {
+		t.Fatal(err)
+	}
+	if o.HarborURL.Host != "harbor.example.com" {
+		t.Errorf("HarborURL = %v, want harbor.example.com", o.HarborURL)
+	}
+
+	t.Setenv("ROBOTEER_HARBOR_URLL", "typo")
+	if err := LoadOptions(flags, &o); err == nil {
+		t.Error("want error for unknown env var ROBOTEER_HARBOR_URLL")
+	}
+}

@@ -153,6 +153,15 @@ func LoadServeOptions(flags *pflag.FlagSet) (*ServeOptions, error) {
 	return &o, nil
 }
 
+func isOtherSubcommandFlag(name string) bool {
+	for _, c := range rootCmd.Commands() {
+		if c.Flags().Lookup(name) != nil {
+			return true
+		}
+	}
+	return false
+}
+
 func LoadOptions(flags *pflag.FlagSet, cfgPtr any) error {
 	k := koanf.New("-")
 
@@ -160,7 +169,11 @@ func LoadOptions(flags *pflag.FlagSet, cfgPtr any) error {
 	if err := k.Load(env.Provider("_", env.Opt{
 		Prefix: envPrefix,
 		TransformFunc: func(key, value string) (string, any) {
-			return strings.ToLower(strings.TrimPrefix(key, envPrefix)), value
+			key = strings.ToLower(strings.TrimPrefix(key, envPrefix))
+			if name := strings.ReplaceAll(key, "_", "-"); flags.Lookup(name) == nil && isOtherSubcommandFlag(name) {
+				return "", nil
+			}
+			return key, value
 		},
 	}), nil); err != nil {
 		return fmt.Errorf("read env vars: %w", err)
