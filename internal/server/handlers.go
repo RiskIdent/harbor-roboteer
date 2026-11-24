@@ -98,7 +98,7 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	name := cmp.Or(req.Name, sub)
 	if name == "" {
 		s.Log.ErrorContext(ctx, "token has no sub claim and no name was provided in the request body")
-		http.Error(w, "token has no sub claim, set name in the request body", http.StatusBadRequest)
+		writeProblem(w, http.StatusBadRequest, "token has no sub claim, set name in the request body")
 		return
 	}
 
@@ -114,12 +114,12 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	})
 	if errors.Is(err, errNoPermissions) {
 		s.Log.ErrorContext(ctx, "reject token", slog.String("sub", sub), slog.Any("error", err))
-		http.Error(w, "token is not granted any permissions", http.StatusForbidden)
+		writeProblem(w, http.StatusForbidden, "token is not granted any permissions")
 		return
 	}
 	if err != nil {
 		s.Log.ErrorContext(ctx, "build robot create request", slog.Any("error", err))
-		http.Error(w, "failed to evaluate permissions from config", http.StatusInternalServerError)
+		writeProblem(w, http.StatusInternalServerError, "failed to evaluate permissions from config")
 		return
 	}
 	created, err := s.Harbor.CreateRobot(ctx, robot)
@@ -130,7 +130,7 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		s.Log.ErrorContext(ctx, "create robot account", slog.Any("error", err))
-		http.Error(w, "failed to create robot account in Harbor", http.StatusBadGateway)
+		writeProblem(w, http.StatusBadGateway, "failed to create robot account in Harbor")
 		return
 	}
 	s.Log.InfoContext(ctx, "created robot account",
@@ -227,7 +227,7 @@ func (s *Server) deleteRobot(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		s.Log.ErrorContext(ctx, "get robot account", slog.Any("error", err))
-		http.Error(w, "failed to get robot account from Harbor", http.StatusBadGateway)
+		writeProblem(w, http.StatusBadGateway, "failed to get robot account from Harbor")
 		return
 	}
 
@@ -246,7 +246,7 @@ func (s *Server) deleteRobot(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		s.Log.ErrorContext(ctx, "delete robot account", slog.Any("error", err))
-		http.Error(w, "failed to delete robot account in Harbor", http.StatusBadGateway)
+		writeProblem(w, http.StatusBadGateway, "failed to delete robot account in Harbor")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -265,7 +265,7 @@ func (s *Server) countRobotOp(op string, err error) {
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	if err := s.Harbor.Ping(r.Context()); err != nil {
 		s.Log.ErrorContext(r.Context(), "ping harbor", slog.Any("error", err))
-		http.Error(w, "not healthy: failed to ping harbor", http.StatusServiceUnavailable)
+		writeProblem(w, http.StatusServiceUnavailable, "not healthy: failed to ping harbor")
 		return
 	}
 	w.WriteHeader(http.StatusOK)
