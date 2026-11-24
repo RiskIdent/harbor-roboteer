@@ -26,8 +26,9 @@ var (
 )
 
 const (
-	createAttempts = 5
-	maxNameLen     = 128
+	createAttempts  = 5
+	maxNameLen      = 128
+	managedByPrefix = "harbor-roboteer"
 )
 
 var invalidNameChars = regexp.MustCompile(`[^a-z0-9]+`)
@@ -151,4 +152,39 @@ func (c *Client) Ping(ctx context.Context) error {
 		return fmt.Errorf("ping harbor: %w", err)
 	}
 	return nil
+}
+
+// CleanupRobots deletes every robot account created by harbor-roboteer whose expiry has passed.
+func (c *Client) CleanupRobots(ctx context.Context, now time.Time) (int, error) {
+	var expired []Robot
+	for page := int64(1); ; page++ {
+		resp, err := c.api.Robot.ListRobot(ctx, robot.NewListRobotParams().WithPage(&page))
+		if err != nil {
+			return 0, fmt.Errorf("list robots page %d: %w", page, err)
+		}
+		if len(resp.Payload) == 0 {
+			break
+		}
+		for _, r := range resp.Payload {
+			rob := NewRobotFromResponse(r)
+			if strings.HasPrefix(rob.ManagedBy, managedByPrefix) && !rob.Expiry.IsZero() && rob.Expiry.Before(now) {
+				expired = append(expired, rob)
+			}
+		}
+	}
+
+	var errs []error
+	deleted := 0
+	for _, rob := range expired {
+		if ctx.Err() != nil {
+			errs = append(errs, ctx.Err())
+			break
+		}
+		if err := c.DeleteRobot(ctx, rob.ID); err != nil && !errors.Is(err, ErrRobotNotFound) {
+			errs = append(errs, fmt.Errorf("robot %q: %w", rob.Name, err))
+			continue
+		}
+		deleted++
+	}
+	return deleted, errors.Join(errs...)
 }

@@ -26,29 +26,46 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type ServeOptions struct {
-	Config         string        `koanf:"config"`
-	Addr           string        `koanf:"addr"`
-	MetricsAddr    string        `koanf:"metrics-addr"`
-	LogLevel       string        `koanf:"log-level"`
-	LogFormat      string        `koanf:"log-format"`
-	HarborURL      *url.URL      `koanf:"harbor-url"`
-	HarborUsername string        `koanf:"harbor-username"`
-	HarborPassword string        `koanf:"harbor-password"`
-	OIDCIssuer     string        `koanf:"oidc-issuer"`
-	OIDCAudience   string        `koanf:"oidc-audience"`
-	RobotTTL       time.Duration `koanf:"robot-ttl"`
+// CommonOptions are the options shared by all subcommands.
+type CommonOptions struct {
+	LogLevel       string   `koanf:"log-level"`
+	LogFormat      string   `koanf:"log-format"`
+	HarborURL      *url.URL `koanf:"harbor-url"`
+	HarborUsername string   `koanf:"harbor-username"`
+	HarborPassword string   `koanf:"harbor-password"`
 
 	Help bool `koanf:"help"` // ignored, but added to keep "ErrorUnused" happy
+}
+
+var CommonDefaults = CommonOptions{
+	LogLevel:  "info",
+	LogFormat: "json",
+	HarborURL: &url.URL{},
+}
+
+func addCommonFlags(flags *pflag.FlagSet) {
+	flags.String("log-level", CommonDefaults.LogLevel, "log level, env: $ROBOTEER_LOG_LEVEL")
+	flags.String("log-format", CommonDefaults.LogFormat, "log format, env: $ROBOTEER_LOG_FORMAT")
+	flags.String("harbor-url", CommonDefaults.HarborURL.String(), "Harbor base URL, env: $ROBOTEER_HARBOR_URL")
+	flags.String("harbor-username", CommonDefaults.HarborUsername, "Harbor admin or robot username, env: $ROBOTEER_HARBOR_USERNAME")
+	flags.String("harbor-password", CommonDefaults.HarborPassword, "Harbor password, prefer the env var, env: $ROBOTEER_HARBOR_PASSWORD")
+}
+
+type ServeOptions struct {
+	CommonOptions `koanf:",squash"`
+
+	Config       string        `koanf:"config"`
+	Addr         string        `koanf:"addr"`
+	MetricsAddr  string        `koanf:"metrics-addr"`
+	OIDCIssuer   string        `koanf:"oidc-issuer"`
+	OIDCAudience string        `koanf:"oidc-audience"`
+	RobotTTL     time.Duration `koanf:"robot-ttl"`
 }
 
 var ServeDefaults = ServeOptions{
 	Config:      "roboteer.jsonnet",
 	Addr:        "127.0.0.1:8080",
 	MetricsAddr: "127.0.0.1:9090",
-	LogLevel:    "info",
-	LogFormat:   "json",
-	HarborURL:   &url.URL{},
 
 	OIDCAudience: "harbor-roboteer",
 	RobotTTL:     time.Hour,
@@ -148,11 +165,7 @@ func init() {
 	serveCmd.Flags().StringP("config", "c", ServeDefaults.Config, "config file path, env: $ROBOTEER_CONFIG")
 	serveCmd.Flags().StringP("addr", "a", ServeDefaults.Addr, "server addr, env: $ROBOTEER_ADDR")
 	serveCmd.Flags().String("metrics-addr", ServeDefaults.MetricsAddr, "metrics server addr, env: $ROBOTEER_METRICS_ADDR")
-	serveCmd.Flags().StringP("log-level", "", ServeDefaults.LogLevel, "log level, env: $ROBOTEER_LOG_LEVEL")
-	serveCmd.Flags().StringP("log-format", "", ServeDefaults.LogFormat, "log format, env: $ROBOTEER_LOG_FORMAT")
-	serveCmd.Flags().String("harbor-url", ServeDefaults.HarborURL.String(), "Harbor base URL, env: $ROBOTEER_HARBOR_URL")
-	serveCmd.Flags().String("harbor-username", ServeDefaults.HarborUsername, "Harbor admin or robot username, env: $ROBOTEER_HARBOR_USERNAME")
-	serveCmd.Flags().String("harbor-password", ServeDefaults.HarborPassword, "Harbor password, prefer the env var, env: $ROBOTEER_HARBOR_PASSWORD")
+	addCommonFlags(serveCmd.Flags())
 	serveCmd.Flags().String("oidc-issuer", ServeDefaults.OIDCIssuer, "OIDC issuer URL, e.g. https://token.actions.githubusercontent.com, env: $ROBOTEER_OIDC_ISSUER")
 	serveCmd.Flags().String("oidc-audience", ServeDefaults.OIDCAudience, "required token audience, e.g. harbor-roboteer, env: $ROBOTEER_OIDC_AUDIENCE")
 	serveCmd.Flags().Duration("robot-ttl", ServeDefaults.RobotTTL, "early expiry duration for robot accounts, env: $ROBOTEER_ROBOT_TTL")

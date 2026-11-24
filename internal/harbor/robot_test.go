@@ -3,6 +3,7 @@ package harbor
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -200,5 +201,72 @@ func TestCreateRobotGivesUpAfterAttempts(t *testing.T) {
 	}
 	if calls != createAttempts {
 		t.Fatalf("got %d create calls, want %d", calls, createAttempts)
+	}
+}
+
+func TestCleanupRobots(t *testing.T) {
+	os.Clearenv() // Prevent proxy settings from redirecting local test traffic.
+	now := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
+	desc := func(managedBy string, expiry time.Time) string {
+		return RobotMetadata{ManagedBy: managedBy, Expiry: expiry}.String()
+	}
+	type robotJSON struct {
+		ID          int64  `json:"id"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	// Fill page 1 with foreign robots so the interesting ones land on page 2.
+	var robots []robotJSON
+	for i := range 15 { // more than the default page size of 10
+		robots = append(robots, robotJSON{ID: int64(1000 + i), Name: "foreign", Description: "plain text"})
+	}
+	robots = append(robots,
+		robotJSON{ID: 1, Name: "expired", Description: desc("harbor-roboteer v1", now.Add(-time.Hour))},
+		robotJSON{ID: 2, Name: "expired-fails", Description: desc("harbor-roboteer v1", now.Add(-time.Hour))},
+		robotJSON{ID: 3, Name: "expired-gone", Description: desc("harbor-roboteer v1", now.Add(-time.Hour))},
+		robotJSON{ID: 4, Name: "expired-after-fail", Description: desc("harbor-roboteer v1", now.Add(-time.Hour))},
+		robotJSON{ID: 5, Name: "valid", Description: desc("harbor-roboteer v1", now.Add(time.Hour))},
+		robotJSON{ID: 6, Name: "other-tool", Description: desc("someone-else", now.Add(-time.Hour))},
+	)
+
+	var deleted []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v2.0/robots":
+			page, size := 1, 10 // Harbor defaults
+			_, _ = fmt.Sscan(r.URL.Query().Get("page"), &page)
+			_, _ = fmt.Sscan(r.URL.Query().Get("page_size"), &size)
+			lo, hi := min((page-1)*size, len(robots)), min(page*size, len(robots))
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(robots[lo:hi])
+		case r.Method == http.MethodDelete:
+			id := strings.TrimPrefix(r.URL.Path, "/api/v2.0/robots/")
+			switch id {
+			case "2":
+				w.WriteHeader(http.StatusInternalServerError)
+			case "3":
+				w.WriteHeader(http.StatusNotFound)
+			default:
+				deleted = append(deleted, id)
+			}
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL)
+		}
+	}))
+	defer srv.Close()
+
+	c, err := New(mustParseURL(srv.URL), "admin", "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := c.CleanupRobots(t.Context(), now)
+	if err == nil || !strings.Contains(err.Error(), "expired-fails") {
+		t.Errorf("err = %v, want error mentioning expired-fails", err)
+	}
+	if n != 3 {
+		t.Errorf("deleted count = %d, want 3", n)
+	}
+	if got := strings.Join(deleted, ","); got != "1,4" {
+		t.Errorf("deleted IDs = %s, want 1,4", got)
 	}
 }
