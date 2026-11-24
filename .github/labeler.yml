@@ -22,6 +22,11 @@ docker:
           - "**/compose.yml"
           - "**/compose.yaml"
 
+helm:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "helm/**"
+
 javascript:
   - changed-files:
       - any-glob-to-any-file:
