@@ -14,9 +14,13 @@ var rootCmd = &cobra.Command{
 	Use:   "harbor-roboteer",
 	Short: "Create Harbor robot accounts from OIDC tokens.",
 	Long: `harbor-roboteer creates Harbor robot accounts for workloads presenting valid
-OIDC tokens. The configured policy maps token claims to account permissions.
-
-Run "harbor-roboteer serve" to start the API.`,
+OIDC tokens. The configured policy maps token claims to account permissions.`,
+	Example: `# start the API
+harbor-roboteer serve \
+  --harbor-url 'https://harbor.example.com' \
+  --harbor-username 'foo' \
+  --harbor-password 'bar' \
+  --oidc-issuer https://token.actions.githubusercontent.com`,
 	SilenceUsage: true,
 }
 
