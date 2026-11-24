@@ -83,6 +83,78 @@
     "existingConfigMap": {
       "type": "string"
     },
+    "flags": {
+      "description": "Map of flag name to value. An empty string or null will omit the flag.",
+      "type": "object",
+      "properties": {
+        "harbor-url": {
+          "examples": [
+            "https://harbor.example.com",
+            "http://harbor-core"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "harbor-username": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "log-format": {
+          "default": "json",
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "json",
+            "text",
+            ""
+          ]
+        },
+        "log-level": {
+          "default": "info",
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error",
+            ""
+          ]
+        },
+        "oidc-audience": {
+          "default": "harbor-roboteer",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "oidc-issuer": {
+          "examples": [
+            "https://token.actions.githubusercontent.com",
+            "https://github-enterprise.example.com/_services/token"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "robot-ttl": {
+          "default": "1h",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
     "fullnameOverride": {
       "type": "string"
     },
@@ -255,15 +327,6 @@
         }
       ]
     },
-    "logLevel": {
-      "type": "string",
-      "enum": [
-        "debug",
-        "info",
-        "warn",
-        "error"
-      ]
-    },
     "metrics": {
       "type": "object",
       "properties": {
@@ -428,6 +491,48 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/_definitions.json/definitions/io.k8s.api.core.v1.Toleration"
+      }
+    },
+    "tracing": {
+      "description": "Settings are propagated using the OpenTelemetry environment variable specification",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enables tracing in config and addition of OTLP environment variables.",
+          "type": "boolean"
+        },
+        "exporter": {
+          "type": "string",
+          "enum": [
+            "otlp",
+            "zipkin",
+            "console",
+            "none"
+          ]
+        },
+        "otlp": {
+          "type": "object",
+          "properties": {
+            "compression": {
+              "type": "string",
+              "enum": [
+                "none",
+                "gzip"
+              ]
+            },
+            "endpoint": {
+              "type": "string"
+            },
+            "protocol": {
+              "type": "string",
+              "enum": [
+                "grpc",
+                "http/protobuf",
+                "http/json"
+              ]
+            }
+          }
+        }
       }
     },
     "volumeMounts": {

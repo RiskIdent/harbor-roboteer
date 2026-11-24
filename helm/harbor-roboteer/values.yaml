@@ -181,8 +181,17 @@ metrics:
     # Scrape interval. Empty uses the Prometheus default.
     interval: ""
 
-# Log level of the app, passed as --log-level.
-logLevel: info # @schema enum:[debug, info, warn, error]
+# @schema description: Settings are propagated using the OpenTelemetry environment variable specification
+# https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/
+# https://opentelemetry.io/docs/specs/otel/protocol/exporter/
+tracing:
+  # -- Enables tracing in config and addition of OTLP environment variables.
+  enabled: false
+  exporter: otlp # @schema enum: [otlp, zipkin, console, none]
+  otlp:
+    endpoint: http://otel-collector-collector.opentelemetry.svc.cluster.local:4317
+    protocol: grpc # @schema enum: [grpc, http/protobuf, http/json]
+    compression: none # @schema enum: [none, gzip]
 
 # CronJob that runs "harbor-roboteer cleanup" to delete expired robot accounts created by harbor-roboteer.
 # It uses the same image, env, envFrom, logLevel, service account and scheduling settings as the server.
@@ -203,7 +212,19 @@ config: |
 # Pods are not restarted when it changes.
 existingConfigMap: ""
 
-# Extra flags.
+# @schema description: Map of flag name to value. An empty string or null will omit the flag.
+flags:
+  # Log level of the app
+  log-level: info # @schema nullable; enum:[debug, info, warn, error, ""]; default: info
+  # Log format of the app
+  log-format: json # @schema nullable; enum:[json, text, ""]; default: json
+  harbor-url: "" # @schema nullable; examples:[https://harbor.example.com, http://harbor-core]
+  harbor-username: admin # @schema nullable
+  oidc-audience: harbor-roboteer # @schema nullable; default: harbor-roboteer
+  oidc-issuer: "" # @schema nullable; examples:[https://token.actions.githubusercontent.com, https://github-enterprise.example.com/_services/token]
+  robot-ttl: 1h # @schema nullable; default: 1h
+
+# Extra command-line arguments.
 args: [] # @schema item: string
   # - --oidc-audience=harbor-roboteer
 
