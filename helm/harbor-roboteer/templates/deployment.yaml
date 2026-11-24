@@ -50,15 +50,29 @@ spec:
             {{- if .Values.metrics.enabled }}
             - --metrics-addr=:{{ .Values.metrics.port }}
             {{- end }}
-            - --log-level={{ .Values.logLevel }}
             - --config=/etc/harbor-roboteer/roboteer.jsonnet
+            {{- range $flag := list "log-level" "log-format" "harbor-url" "harbor-username" "oidc-audience" "oidc-issuer" "robot-ttl" }}
+            {{- with get $.Values.flags $flag }}
+            - --{{ $flag }}={{ . }}
+            {{- end }}
+            {{- end }}
             {{- with .Values.args }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- with .Values.env }}
           env:
+            {{- if .Values.tracing.enabled }}
+            {{- if eq .Values.tracing.exporter "otlp" }}
+            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: "{{ .Values.tracing.otlp.endpoint }}"
+            - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+              value: "{{ .Values.tracing.otlp.protocol }}"
+            - name: OTEL_EXPORTER_OTLP_TRACES_COMPRESSION
+              value: "{{ .Values.tracing.otlp.compression | default "none" }}"
+            {{- end }}
+            {{- end }}
+            {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- end }}
           {{- with .Values.envFrom }}
           envFrom:
             {{- toYaml . | nindent 12 }}

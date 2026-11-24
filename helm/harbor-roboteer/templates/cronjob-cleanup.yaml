@@ -51,7 +51,11 @@ spec:
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               args:
                 - cleanup
-                - --log-level={{ .Values.logLevel }}
+                {{- range $flag := list "log-level" "log-format" "harbor-url" "harbor-username" }}
+                {{- with get $.Values.flags $flag }}
+                - --{{ $flag }}={{ . }}
+                {{- end }}
+                {{- end }}
               {{- with .Values.env }}
               env:
                 {{- toYaml . | nindent 16 }}
