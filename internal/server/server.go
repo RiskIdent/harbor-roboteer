@@ -21,17 +21,22 @@ import (
 const readHeaderTimeout = 10 * time.Second
 
 type Server struct {
+	ServerOptions
 	version     string
 	router      *http.ServeMux
 	server      *http.Server
 	listener    net.Listener
-	log         *slog.Logger
 	robotOps    *prometheus.CounterVec // robot account operations in Harbor, by operation and result
 	httpMetrics *httpMetrics
-	harbor      harborClient
-	config      *config.Config
-	robotTTL    time.Duration
-	jwtOpts     []jwt.ParseOption // key set, issuer and audience to verify caller tokens
+}
+
+type ServerOptions struct {
+	Addr       string
+	Log        *slog.Logger
+	Harbor     harborClient
+	Config     *config.Config
+	JWTOptions []jwt.ParseOption // key set, issuer and audience to verify caller tokens
+	RobotTTL   time.Duration
 }
 
 type harborClient interface {
@@ -46,11 +51,17 @@ type IServer interface {
 	Start(ctx context.Context) error
 }
 
-func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClient, cfg *config.Config, robotTTL time.Duration, jwtOpts ...jwt.ParseOption) (*Server, error) {
+func NewServer(ctx context.Context, opt ServerOptions) (*Server, error) {
+	if opt.Log == nil {
+		opt.Log = slog.Default()
+	}
+	if opt.Addr == "" {
+		return nil, fmt.Errorf("NewServer: address must be provided")
+	}
 	r := http.NewServeMux()
-	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
+	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", opt.Addr)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't create the listener with addr %s, error: %w", addr, err)
+		return nil, fmt.Errorf("couldn't create the listener with addr %s, error: %w", opt.Addr, err)
 	}
 	robotOps := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "harbor_roboteer_robot_operations_total",
@@ -63,24 +74,20 @@ func NewServer(ctx context.Context, addr string, log *slog.Logger, hc harborClie
 	}
 	httpMetrics := newHTTPMetrics(unmonitoredPaths...)
 	s := &Server{
-		version: version.Get(),
-		router:  r,
+		ServerOptions: opt,
+		version:       version.Get(),
+		router:        r,
 		server: &http.Server{
 			ReadHeaderTimeout: readHeaderTimeout,
 			Handler: ChainMiddlewares(r,
 				TracingMiddleware(unmonitoredPaths...),
-				LoggingMiddleware(log, unmonitoredPaths...),
+				LoggingMiddleware(opt.Log, unmonitoredPaths...),
 				httpMetrics.Middleware, // must stay last: reads r.Pattern
 			),
 		},
 		listener:    l,
-		log:         log,
 		robotOps:    robotOps,
 		httpMetrics: httpMetrics,
-		harbor:      hc,
-		config:      cfg,
-		robotTTL:    robotTTL,
-		jwtOpts:     jwtOpts,
 	}
 	s.registerHandlers()
 	return s, nil
@@ -103,7 +110,7 @@ func (s *Server) Start(ctx context.Context) error {
 		shutdownErr <- s.server.Shutdown(shutdownCtx)
 	}()
 
-	s.log.InfoContext(ctx, "starting server", slog.String("addr", s.listener.Addr().String()))
+	s.Log.InfoContext(ctx, "starting server", slog.String("addr", s.listener.Addr().String()))
 	if err := s.server.Serve(s.listener); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

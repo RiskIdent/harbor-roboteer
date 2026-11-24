@@ -75,9 +75,9 @@ func (s *Server) registerV1() {
 
 func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tok, err := jwt.ParseRequest(r, s.jwtOpts...)
+	tok, err := jwt.ParseRequest(r, s.JWTOptions...)
 	if err != nil {
-		s.log.ErrorContext(ctx, "reject token", slog.Any("error", err))
+		s.Log.ErrorContext(ctx, "reject token", slog.Any("error", err))
 		w.Header().Set("WWW-Authenticate", "Bearer")
 		http.Error(w, "invalid or missing token", http.StatusUnauthorized)
 		return
@@ -100,43 +100,43 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	sub, _ := tok.Subject()
 	name := cmp.Or(req.Name, sub)
 	if name == "" {
-		s.log.ErrorContext(ctx, "token has no sub claim and no name was provided in the request body")
+		s.Log.ErrorContext(ctx, "token has no sub claim and no name was provided in the request body")
 		http.Error(w, "token has no sub claim, set name in the request body", http.StatusBadRequest)
 		return
 	}
 
 	deleteToken := rand.Text()
 	robot, permissions, err := buildRobotCreate(robotCreateOptions{
-		Config:      s.config,
+		Config:      s.Config,
 		Token:       tok,
 		Subject:     sub,
 		Name:        name,
 		DeleteToken: deleteToken,
 		Version:     s.version,
-		RobotTTL:    s.robotTTL,
+		RobotTTL:    s.RobotTTL,
 	})
 	if errors.Is(err, errNoPermissions) {
-		s.log.ErrorContext(ctx, "reject token", slog.String("sub", sub), slog.Any("error", err))
+		s.Log.ErrorContext(ctx, "reject token", slog.String("sub", sub), slog.Any("error", err))
 		http.Error(w, "token is not granted any permissions", http.StatusForbidden)
 		return
 	}
 	if err != nil {
-		s.log.ErrorContext(ctx, "build robot create request", slog.Any("error", err))
+		s.Log.ErrorContext(ctx, "build robot create request", slog.Any("error", err))
 		http.Error(w, "failed to evaluate permissions from config", http.StatusInternalServerError)
 		return
 	}
-	created, err := s.harbor.CreateRobot(ctx, robot)
+	created, err := s.Harbor.CreateRobot(ctx, robot)
 	s.countRobotOp("create", err)
 	if errors.Is(err, harbor.ErrRobotExists) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
 	if err != nil {
-		s.log.ErrorContext(ctx, "create robot account", slog.Any("error", err))
+		s.Log.ErrorContext(ctx, "create robot account", slog.Any("error", err))
 		http.Error(w, "failed to create robot account in Harbor", http.StatusBadGateway)
 		return
 	}
-	s.log.InfoContext(ctx, "created robot account",
+	s.Log.InfoContext(ctx, "created robot account",
 		slog.String("sub", sub),
 		slog.Int64("robotId", created.ID),
 		slog.String("robotName", created.Name),
@@ -223,13 +223,13 @@ func (s *Server) deleteRobot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rb, err := s.harbor.GetRobotByID(ctx, robotID)
+	rb, err := s.Harbor.GetRobotByID(ctx, robotID)
 	if errors.Is(err, harbor.ErrRobotNotFound) {
 		http.Error(w, errInvalidDeleteCombo, http.StatusForbidden)
 		return
 	}
 	if err != nil {
-		s.log.ErrorContext(ctx, "get robot account", slog.Any("error", err))
+		s.Log.ErrorContext(ctx, "get robot account", slog.Any("error", err))
 		http.Error(w, "failed to get robot account from Harbor", http.StatusBadGateway)
 		return
 	}
@@ -241,14 +241,14 @@ func (s *Server) deleteRobot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.harbor.DeleteRobot(ctx, robotID)
+	err = s.Harbor.DeleteRobot(ctx, robotID)
 	s.countRobotOp("delete", err)
 	if errors.Is(err, harbor.ErrRobotNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 	if err != nil {
-		s.log.ErrorContext(ctx, "delete robot account", slog.Any("error", err))
+		s.Log.ErrorContext(ctx, "delete robot account", slog.Any("error", err))
 		http.Error(w, "failed to delete robot account in Harbor", http.StatusBadGateway)
 		return
 	}
@@ -266,8 +266,8 @@ func (s *Server) countRobotOp(op string, err error) {
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
-	if err := s.harbor.Ping(r.Context()); err != nil {
-		s.log.ErrorContext(r.Context(), "ping harbor", slog.Any("error", err))
+	if err := s.Harbor.Ping(r.Context()); err != nil {
+		s.Log.ErrorContext(r.Context(), "ping harbor", slog.Any("error", err))
 		http.Error(w, "not healthy: failed to ping harbor", http.StatusServiceUnavailable)
 		return
 	}

@@ -57,13 +57,9 @@ var ServeDefaults = ServeOptions{
 // serveCmd represents the serve command
 var serveCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "Start the Harbor robot account API.",
+	Long: `Starts the HTTP API. It validates OIDC tokens, evaluates the configured
+policy against their claims, and creates Harbor robot accounts.`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		ctx := cmd.Context()
 		opt, err := LoadServeOptions(cmd.Flags())
@@ -112,12 +108,19 @@ to quickly create a Cobra application.`,
 		}
 		defer func() { _ = keys.Close(context.WithoutCancel(ctx)) }()
 
-		s, err := server.NewServer(ctx, opt.Addr, log, hc, cfg,
-			opt.RobotTTL,
-			jwt.WithKeySet(keys.Set),
-			jwt.WithIssuer(opt.OIDCIssuer),
-			jwt.WithAudience(opt.OIDCAudience),
-		)
+		s, err := server.NewServer(ctx, server.ServerOptions{
+			Addr:     opt.Addr,
+			Log:      log,
+			Config:   cfg,
+			Harbor:   hc,
+			RobotTTL: opt.RobotTTL,
+			JWTOptions: []jwt.ParseOption{
+				jwt.WithKeySet(keys.Set),
+				jwt.WithIssuer(opt.OIDCIssuer),
+				jwt.WithAudience(opt.OIDCAudience),
+				jwt.WithAcceptableSkew(time.Minute),
+			},
+		})
 		if err != nil {
 			return err
 		}
