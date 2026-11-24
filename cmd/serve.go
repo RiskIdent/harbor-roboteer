@@ -108,12 +108,19 @@ policy against their claims, and creates Harbor robot accounts.`,
 		}
 		defer func() { _ = keys.Close(context.WithoutCancel(ctx)) }()
 
-		s, err := server.NewServer(ctx, opt.Addr, log, hc, cfg,
-			opt.RobotTTL,
-			jwt.WithKeySet(keys.Set),
-			jwt.WithIssuer(opt.OIDCIssuer),
-			jwt.WithAudience(opt.OIDCAudience),
-		)
+		s, err := server.NewServer(ctx, server.ServerOptions{
+			Addr:     opt.Addr,
+			Log:      log,
+			Config:   cfg,
+			Harbor:   hc,
+			RobotTTL: opt.RobotTTL,
+			JWTOptions: []jwt.ParseOption{
+				jwt.WithKeySet(keys.Set),
+				jwt.WithIssuer(opt.OIDCIssuer),
+				jwt.WithAudience(opt.OIDCAudience),
+				jwt.WithAcceptableSkew(time.Minute),
+			},
+		})
 		if err != nil {
 			return err
 		}

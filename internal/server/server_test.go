@@ -15,7 +15,7 @@ import (
 
 func TestStartWaitsForInFlightRequests(t *testing.T) {
 	os.Clearenv() // Prevent proxy settings from redirecting local test traffic.
-	s, err := NewServer(t.Context(), ":0", slog.New(slog.DiscardHandler), nil, nil, time.Hour)
+	s, err := NewServer(t.Context(), ServerOptions{Addr: "127.0.0.1:0", Log: slog.New(slog.DiscardHandler)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestStartWaitsForInFlightRequests(t *testing.T) {
 }
 
 func TestSlowRequestHeadersAreCutOff(t *testing.T) {
-	s, err := NewServer(t.Context(), "127.0.0.1:0", slog.New(slog.DiscardHandler), nil, nil, time.Hour)
+	s, err := NewServer(t.Context(), ServerOptions{Addr: "127.0.0.1:0", Log: slog.New(slog.DiscardHandler)})
 	if err != nil {
 		t.Fatal(err)
 	}
