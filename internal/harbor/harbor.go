@@ -26,9 +26,9 @@ var (
 )
 
 const (
-	createAttempts  = 5
-	maxNameLen      = 128
-	managedByPrefix = "harbor-roboteer"
+	createAttempts = 5
+	maxNameLen     = 128
+	managedByName  = "harbor-roboteer"
 )
 
 var invalidNameChars = regexp.MustCompile(`[^a-z0-9]+`)
@@ -167,7 +167,8 @@ func (c *Client) CleanupRobots(ctx context.Context, now time.Time) (int, error) 
 		}
 		for _, r := range resp.Payload {
 			rob := NewRobotFromResponse(r)
-			if strings.HasPrefix(rob.ManagedBy, managedByPrefix) && !rob.Expiry.IsZero() && rob.Expiry.Before(now) {
+			manager, _, _ := strings.Cut(rob.ManagedBy, " ")
+			if manager == managedByName && !rob.Expiry.IsZero() && rob.Expiry.Before(now) {
 				expired = append(expired, rob)
 			}
 		}

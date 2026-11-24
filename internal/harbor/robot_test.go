@@ -227,6 +227,8 @@ func TestCleanupRobots(t *testing.T) {
 		robotJSON{ID: 4, Name: "expired-after-fail", Description: desc("harbor-roboteer v1", now.Add(-time.Hour))},
 		robotJSON{ID: 5, Name: "valid", Description: desc("harbor-roboteer v1", now.Add(time.Hour))},
 		robotJSON{ID: 6, Name: "other-tool", Description: desc("someone-else", now.Add(-time.Hour))},
+		robotJSON{ID: 7, Name: "lookalike-tool", Description: desc("harbor-roboteer-other-tool v1", now.Add(-time.Hour))},
+		robotJSON{ID: 8, Name: "no-version", Description: desc("harbor-roboteer", now.Add(-time.Hour))},
 	)
 
 	var deleted []string
@@ -263,10 +265,10 @@ func TestCleanupRobots(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "expired-fails") {
 		t.Errorf("err = %v, want error mentioning expired-fails", err)
 	}
-	if n != 3 {
-		t.Errorf("deleted count = %d, want 3", n)
+	if n != 4 {
+		t.Errorf("deleted count = %d, want 4", n)
 	}
-	if got := strings.Join(deleted, ","); got != "1,4" {
-		t.Errorf("deleted IDs = %s, want 1,4", got)
+	if got := strings.Join(deleted, ","); got != "1,4,8" {
+		t.Errorf("deleted IDs = %s, want 1,4,8", got)
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"strings"
 	"time"
 
@@ -25,31 +24,6 @@ import (
 	"github.com/spf13/pflag"
 	"golang.org/x/sync/errgroup"
 )
-
-// CommonOptions are the options shared by all subcommands.
-type CommonOptions struct {
-	LogLevel       string   `koanf:"log-level"`
-	LogFormat      string   `koanf:"log-format"`
-	HarborURL      *url.URL `koanf:"harbor-url"`
-	HarborUsername string   `koanf:"harbor-username"`
-	HarborPassword string   `koanf:"harbor-password"`
-
-	Help bool `koanf:"help"` // ignored, but added to keep "ErrorUnused" happy
-}
-
-var CommonDefaults = CommonOptions{
-	LogLevel:  "info",
-	LogFormat: "json",
-	HarborURL: &url.URL{},
-}
-
-func addCommonFlags(flags *pflag.FlagSet) {
-	flags.String("log-level", CommonDefaults.LogLevel, "log level, env: $ROBOTEER_LOG_LEVEL")
-	flags.String("log-format", CommonDefaults.LogFormat, "log format, env: $ROBOTEER_LOG_FORMAT")
-	flags.String("harbor-url", CommonDefaults.HarborURL.String(), "Harbor base URL, env: $ROBOTEER_HARBOR_URL")
-	flags.String("harbor-username", CommonDefaults.HarborUsername, "Harbor admin or robot username, env: $ROBOTEER_HARBOR_USERNAME")
-	flags.String("harbor-password", CommonDefaults.HarborPassword, "Harbor password, prefer the env var, env: $ROBOTEER_HARBOR_PASSWORD")
-}
 
 type ServeOptions struct {
 	CommonOptions `koanf:",squash"`
