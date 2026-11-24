@@ -12,13 +12,15 @@ import (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "harbor-roboteer",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "Create Harbor robot accounts from OIDC tokens.",
+	Long: `harbor-roboteer creates Harbor robot accounts for workloads presenting valid
+OIDC tokens. The configured policy maps token claims to account permissions.`,
+	Example: `# start the API
+harbor-roboteer serve \
+  --harbor-url 'https://harbor.example.com' \
+  --harbor-username 'foo' \
+  --harbor-password 'bar' \
+  --oidc-issuer https://token.actions.githubusercontent.com`,
 	SilenceUsage: true,
 }
 
