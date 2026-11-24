@@ -14,7 +14,6 @@ import (
 	"maps"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/RiskIdent/harbor-roboteer/internal/config"
@@ -79,29 +78,29 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.Log.ErrorContext(ctx, "reject token", slog.Any("error", err))
 		w.Header().Set("WWW-Authenticate", "Bearer")
-		http.Error(w, "invalid or missing token", http.StatusUnauthorized)
+		writeProblem(w, http.StatusUnauthorized, "invalid or missing token")
 		return
 	}
 
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	if err != nil {
 		if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
-			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			writeProblem(w, http.StatusRequestEntityTooLarge, "request body too large")
 			return
 		}
-		http.Error(w, "body must be valid JSON", http.StatusBadRequest)
+		writeProblem(w, http.StatusBadRequest, "body must be valid JSON")
 		return
 	}
 	var req postRobotRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		http.Error(w, "body must be valid JSON", http.StatusBadRequest)
+		writeProblem(w, http.StatusBadRequest, "body must be valid JSON")
 		return
 	}
 	sub, _ := tok.Subject()
 	name := cmp.Or(req.Name, sub)
 	if name == "" {
 		s.Log.ErrorContext(ctx, "token has no sub claim and no name was provided in the request body")
-		http.Error(w, "token has no sub claim, set name in the request body", http.StatusBadRequest)
+		writeProblem(w, http.StatusBadRequest, "token has no sub claim, set name in the request body")
 		return
 	}
 
@@ -117,23 +116,23 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	})
 	if errors.Is(err, errNoPermissions) {
 		s.Log.ErrorContext(ctx, "reject token", slog.String("sub", sub), slog.Any("error", err))
-		http.Error(w, "token is not granted any permissions", http.StatusForbidden)
+		writeProblem(w, http.StatusForbidden, "token is not granted any permissions")
 		return
 	}
 	if err != nil {
 		s.Log.ErrorContext(ctx, "build robot create request", slog.Any("error", err))
-		http.Error(w, "failed to evaluate permissions from config", http.StatusInternalServerError)
+		writeProblem(w, http.StatusInternalServerError, "failed to evaluate permissions from config")
 		return
 	}
 	created, err := s.Harbor.CreateRobot(ctx, robot)
 	s.countRobotOp("create", err)
 	if errors.Is(err, harbor.ErrRobotExists) {
-		http.Error(w, err.Error(), http.StatusConflict)
+		writeProblem(w, http.StatusConflict, err.Error())
 		return
 	}
 	if err != nil {
 		s.Log.ErrorContext(ctx, "create robot account", slog.Any("error", err))
-		http.Error(w, "failed to create robot account in Harbor", http.StatusBadGateway)
+		writeProblem(w, http.StatusBadGateway, "failed to create robot account in Harbor")
 		return
 	}
 	s.Log.InfoContext(ctx, "created robot account",
@@ -213,43 +212,43 @@ func (s *Server) deleteRobot(w http.ResponseWriter, r *http.Request) {
 	token, ok := bearerToken(r)
 	if !ok {
 		w.Header().Set("WWW-Authenticate", "Bearer")
-		http.Error(w, "Authorization: Bearer <delete token> header is required", http.StatusUnauthorized)
+		writeProblem(w, http.StatusUnauthorized, "Authorization: Bearer <delete token> header is required")
 		return
 	}
 
 	robotID, err := strconv.ParseInt(r.URL.Query().Get("robot_id"), 10, 64)
 	if err != nil {
-		http.Error(w, "robot_id query parameter must be an integer", http.StatusBadRequest)
+		writeProblem(w, http.StatusBadRequest, "robot_id query parameter must be an integer")
 		return
 	}
 
 	rb, err := s.Harbor.GetRobotByID(ctx, robotID)
 	if errors.Is(err, harbor.ErrRobotNotFound) {
-		http.Error(w, errInvalidDeleteCombo, http.StatusForbidden)
+		writeProblem(w, http.StatusForbidden, errInvalidDeleteCombo)
 		return
 	}
 	if err != nil {
 		s.Log.ErrorContext(ctx, "get robot account", slog.Any("error", err))
-		http.Error(w, "failed to get robot account from Harbor", http.StatusBadGateway)
+		writeProblem(w, http.StatusBadGateway, "failed to get robot account from Harbor")
 		return
 	}
 
 	hash := sha256.Sum256([]byte(token))
 	want := deleteTokenPrefix + hex.EncodeToString(hash[:])
 	if subtle.ConstantTimeCompare([]byte(rb.DeleteToken), []byte(want)) != 1 {
-		http.Error(w, errInvalidDeleteCombo, http.StatusForbidden)
+		writeProblem(w, http.StatusForbidden, errInvalidDeleteCombo)
 		return
 	}
 
 	err = s.Harbor.DeleteRobot(ctx, robotID)
 	s.countRobotOp("delete", err)
 	if errors.Is(err, harbor.ErrRobotNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		writeProblem(w, http.StatusNotFound, err.Error())
 		return
 	}
 	if err != nil {
 		s.Log.ErrorContext(ctx, "delete robot account", slog.Any("error", err))
-		http.Error(w, "failed to delete robot account in Harbor", http.StatusBadGateway)
+		writeProblem(w, http.StatusBadGateway, "failed to delete robot account in Harbor")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -268,17 +267,8 @@ func (s *Server) countRobotOp(op string, err error) {
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	if err := s.Harbor.Ping(r.Context()); err != nil {
 		s.Log.ErrorContext(r.Context(), "ping harbor", slog.Any("error", err))
-		http.Error(w, "not healthy: failed to ping harbor", http.StatusServiceUnavailable)
+		writeProblem(w, http.StatusServiceUnavailable, "not healthy: failed to ping harbor")
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-}
-
-func bearerToken(r *http.Request) (string, bool) {
-	scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
-	if !ok || !strings.EqualFold(scheme, "Bearer") {
-		return "", false
-	}
-	token = strings.TrimLeft(token, " ")
-	return token, token != ""
 }
