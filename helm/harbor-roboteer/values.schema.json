@@ -41,8 +41,32 @@
     "cleanup": {
       "type": "object",
       "properties": {
+        "cronjobAnnotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "cronjobLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "enabled": {
           "type": "boolean"
+        },
+        "jobAnnotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "jobLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         },
         "resources": {
           "allOf": [
@@ -67,6 +91,18 @@
     },
     "config": {
       "type": "string"
+    },
+    "deploymentAnnotations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "deploymentLabels": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
     },
     "env": {
       "type": "array",

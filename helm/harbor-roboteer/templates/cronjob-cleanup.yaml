@@ -6,6 +6,13 @@ metadata:
   labels:
     {{- include "harbor-roboteer.labels" . | nindent 4 }}
     app.kubernetes.io/component: cleanup
+    {{- with .Values.cleanup.cronjobLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.cleanup.cronjobAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   schedule: {{ .Values.cleanup.schedule | quote }}
   concurrencyPolicy: Forbid
@@ -14,6 +21,13 @@ spec:
       labels:
         {{- include "harbor-roboteer.labels" . | nindent 8 }}
         app.kubernetes.io/component: cleanup
+        {{- with .Values.cleanup.jobLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.cleanup.jobAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
       template:
         metadata:
