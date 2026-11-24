@@ -32,6 +32,9 @@ podAnnotations: {} # @schema additionalProperties: {type: string}
 # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
 podLabels: {} # @schema additionalProperties: {type: string}
 
+deploymentAnnotations: {} # @schema additionalProperties: {type: string}
+deploymentLabels: {} # @schema additionalProperties: {type: string}
+
 # Pod-level security settings. Defaults satisfy the "restricted" Pod Security Standard.
 podSecurityContext: # @schema skipProperties; $ref: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.PodSecurityContext
   runAsNonRoot: true
@@ -200,6 +203,11 @@ cleanup:
   # Cron schedule, see https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-syntax
   schedule: "0 * * * *"
   resources: {} # @schema $ref: ./schema-utils.yaml#/definitions/resources
+
+  cronjobAnnotations: {} # @schema additionalProperties: {type: string}
+  cronjobLabels: {} # @schema additionalProperties: {type: string}
+  jobAnnotations: {} # @schema additionalProperties: {type: string}
+  jobLabels: {} # @schema additionalProperties: {type: string}
 
 # Jsonnet config mapping token claims to Harbor permissions, see roboteer.jsonnet in the repo.
 # Stored in a ConfigMap and passed as --config. Set it from a file with:
