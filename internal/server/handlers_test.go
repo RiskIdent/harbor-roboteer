@@ -1,7 +1,12 @@
 package server
 
 import (
+	"bytes"
+	"context"
 	"errors"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
@@ -10,6 +15,62 @@ import (
 	"github.com/RiskIdent/harbor-roboteer/internal/harbor"
 	"github.com/lestrrat-go/jwx/v4/jwt"
 )
+
+type pingHarbor struct {
+	harborClient
+	err error
+}
+
+func (h pingHarbor) Ping(context.Context) error {
+	return h.err
+}
+
+func TestRoutes(t *testing.T) {
+	var logs bytes.Buffer
+	hc := &pingHarbor{}
+	s, err := NewServer(t.Context(), "127.0.0.1:0", slog.New(slog.NewTextHandler(&logs, nil)), hc, nil, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.listener.Close() })
+
+	tests := []struct {
+		method string
+		path   string
+		want   int
+	}{
+		{http.MethodPost, "/api/roboteer/v1/robot", http.StatusUnauthorized},
+		{http.MethodDelete, "/api/roboteer/v1/robot", http.StatusUnauthorized},
+		{http.MethodGet, "/api/roboteer/v1/health", http.StatusOK},
+		{http.MethodPost, "/api/v1/robot", http.StatusNotFound},
+		{http.MethodDelete, "/api/v1/robot", http.StatusNotFound},
+		{http.MethodGet, "/api/v1/health", http.StatusNotFound},
+		{http.MethodGet, "/api/v2.0/health", http.StatusNotFound},
+	}
+	for _, test := range tests {
+		t.Run(test.method+" "+test.path, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			s.server.Handler.ServeHTTP(response, httptest.NewRequest(test.method, test.path, nil))
+			if response.Code != test.want {
+				t.Errorf("status = %d, want %d", response.Code, test.want)
+			}
+		})
+	}
+
+	logs.Reset()
+	hc.err = errors.New("ping failed")
+	response := httptest.NewRecorder()
+	s.server.Handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/roboteer/v1/health", nil))
+	if response.Code != http.StatusServiceUnavailable {
+		t.Errorf("unhealthy status = %d, want %d", response.Code, http.StatusServiceUnavailable)
+	}
+	if !s.httpMetrics.skip(httptest.NewRequest(http.MethodGet, "/api/roboteer/v1/health", nil)) {
+		t.Error("health path should be excluded from monitoring")
+	}
+	if bytes.Contains(logs.Bytes(), []byte("msg=request")) {
+		t.Error("health request should not be logged")
+	}
+}
 
 func TestBuildRobotCreate(t *testing.T) {
 	fixedNow := time.Date(2026, 11, 18, 20, 0, 0, 0, time.UTC)

@@ -22,7 +22,10 @@ import (
 	"github.com/lestrrat-go/jwx/v4/jwt"
 )
 
-const deleteTokenPrefix = "sha256:"
+const (
+	deleteTokenPrefix = "sha256:"
+	apiV1Prefix       = "/api/roboteer/v1"
+)
 
 // maxBodyBytes is the largest request body that POST /token accepts
 const maxBodyBytes = 64 << 10
@@ -48,7 +51,7 @@ type postRobotResponse struct {
 
 var (
 	unmonitoredPaths = []string{
-		"/api/v1/health",
+		apiV1Prefix + "/health",
 	}
 
 	errNoPermissions  = errors.New("config grants no permissions to token")
@@ -64,11 +67,10 @@ func (s *Server) registerHandlers() {
 func (s *Server) registerV1() {
 	r := s.router
 
-	const prefix = "/api/v1"
-	r.HandleFunc("POST "+prefix+"/robot", s.postRobot)
-	r.HandleFunc("DELETE "+prefix+"/robot", s.deleteRobot)
+	r.HandleFunc("POST "+apiV1Prefix+"/robot", s.postRobot)
+	r.HandleFunc("DELETE "+apiV1Prefix+"/robot", s.deleteRobot)
 
-	r.HandleFunc("GET "+prefix+"/health", s.health)
+	r.HandleFunc("GET "+apiV1Prefix+"/health", s.health)
 }
 
 func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
