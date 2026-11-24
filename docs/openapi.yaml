@@ -14,7 +14,7 @@ externalDocs:
   url: https://github.com/RiskIdent/harbor-roboteer
 
 paths:
-  /api/v1/robot:
+  /api/roboteer/v1/robot:
     post:
       operationId: postRobot
       summary: Create robot account
@@ -101,7 +101,7 @@ paths:
         "502":
           $ref: "#/components/responses/Error"
 
-  /api/v1/health:
+  /api/roboteer/v1/health:
     get:
       operationId: getHealth
       summary: Health check
@@ -124,7 +124,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: opaque
-      description: The `deleteToken` returned by `POST /api/v1/robot`.
+      description: The `deleteToken` returned by `POST /api/roboteer/v1/robot`.
   responses:
     Error:
       description: Error

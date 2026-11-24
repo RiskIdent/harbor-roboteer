@@ -152,11 +152,11 @@ resources: {} # @schema $ref: ./schema-utils.yaml#/definitions/resources
 # This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 livenessProbe: # @schema skipProperties; $ref: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.Probe
   httpGet:
-    path: /api/v1/health
+    path: /api/roboteer/v1/health
     port: http
 readinessProbe: # @schema skipProperties; $ref: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.Probe
   httpGet:
-    path: /api/v1/health
+    path: /api/roboteer/v1/health
     port: http
 
 # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
