@@ -18,7 +18,6 @@ const readHeaderTimeout = 10 * time.Second
 type Server struct {
 	server   *http.Server
 	listener net.Listener
-	log      *slog.Logger
 }
 
 type MetricsServer interface {
@@ -42,8 +41,12 @@ func NewServer(ctx context.Context, log *slog.Logger, addr string, reg *promethe
 			ReadHeaderTimeout: readHeaderTimeout,
 		},
 		listener: l,
-		log:      log,
 	}, nil
+}
+
+// Addr returns the address the server listens on.
+func (s *Server) Addr() net.Addr {
+	return s.listener.Addr()
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -58,7 +61,6 @@ func (s *Server) Start(ctx context.Context) error {
 		shutdownErr <- s.server.Shutdown(shutdownCtx)
 	}()
 
-	s.log.InfoContext(ctx, "starting server", slog.String("addr", s.listener.Addr().String()))
 	if err := s.server.Serve(s.listener); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

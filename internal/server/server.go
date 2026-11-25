@@ -98,6 +98,11 @@ func (s *Server) Collectors() []prometheus.Collector {
 	return append(s.httpMetrics.collectors(), s.robotOps)
 }
 
+// Addr returns the address the server listens on.
+func (s *Server) Addr() net.Addr {
+	return s.listener.Addr()
+}
+
 func (s *Server) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -110,7 +115,6 @@ func (s *Server) Start(ctx context.Context) error {
 		shutdownErr <- s.server.Shutdown(shutdownCtx)
 	}()
 
-	s.Log.InfoContext(ctx, "starting server", slog.String("addr", s.listener.Addr().String()))
 	if err := s.server.Serve(s.listener); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
