@@ -10,9 +10,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/RiskIdent/harbor-roboteer/internal/retry"
 	"github.com/lestrrat-go/jwx/v4/jwk"
 )
 
@@ -84,10 +87,20 @@ func TestNewFailsOnIssuerMismatch(t *testing.T) {
 
 func TestNewFailsWhenNoDiscovery(t *testing.T) {
 	os.Clearenv() // Prevent proxy settings from redirecting local test traffic.
-	srv := httptest.NewServer(http.NotFoundHandler())
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		http.NotFound(w, r)
+	}))
+	srv.Config.SetKeepAlivesEnabled(false) // idle connections would block synctest from advancing time
 	defer srv.Close()
-	if _, err := New(t.Context(), srv.URL); err == nil {
-		t.Fatal("want error when the discovery endpoint returns 404")
+	synctest.Test(t, func(t *testing.T) {
+		if _, err := New(t.Context(), srv.URL); err == nil {
+			t.Fatal("want error when the discovery endpoint returns 404")
+		}
+	})
+	if calls != retry.DefaultBackoff.MaxAttempts {
+		t.Fatalf("got %d discovery calls, want %d", calls, retry.DefaultBackoff.MaxAttempts)
 	}
 }
 
@@ -98,5 +111,36 @@ func TestNewFailsWhenKeysUnreachable(t *testing.T) {
 	issuer := fakeProvider(t, "", http.NotFoundHandler())
 	if _, err := New(t.Context(), issuer); err == nil {
 		t.Fatal("want error when the JWKS endpoint returns 404")
+	}
+}
+
+func TestDiscoverRetriesTruncatedBody(t *testing.T) {
+	os.Clearenv() // Prevent proxy settings from redirecting local test traffic.
+	calls := 0
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		body, _ := json.Marshal(map[string]string{"issuer": srv.URL, "jwks_uri": srv.URL + "/keys"})
+		if calls == 1 {
+			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+			_, _ = w.Write(body[:len(body)/2])
+			return
+		}
+		_, _ = w.Write(body)
+	}))
+	srv.Config.SetKeepAlivesEnabled(false) // idle connections would block synctest from advancing time
+	defer srv.Close()
+
+	synctest.Test(t, func(t *testing.T) {
+		got, err := discover(t.Context(), srv.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := srv.URL + "/keys"; got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+	if calls != 2 {
+		t.Fatalf("got %d discovery calls, want 2", calls)
 	}
 }

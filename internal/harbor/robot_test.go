@@ -10,7 +10,10 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
+
+	"github.com/RiskIdent/harbor-roboteer/internal/retry"
 )
 
 // harborNameRe is Harbor's own robot name check (https://github.com/goharbor/harbor/blob/8499cade41eafb3cd1de49fac2bc2c240ba758c7/src/server/v2.0/handler/robot.go#L492).
@@ -137,12 +140,36 @@ func fakeHarbor(t *testing.T, respond func(w http.ResponseWriter, name string)) 
 		w.Header().Set("Content-Type", "application/json")
 		respond(w, body.Name)
 	}))
+	srv.Config.SetKeepAlivesEnabled(false) // idle connections would block synctest from advancing time
 	t.Cleanup(srv.Close)
 	c, err := New(mustParseURL(srv.URL), "admin", "secret")
 	if err != nil {
 		t.Fatal(err)
 	}
 	return c
+}
+
+func TestCreateRobotRetriesOnServerError(t *testing.T) {
+	calls := 0
+	c := fakeHarbor(t, func(w http.ResponseWriter, name string) {
+		calls++
+		if calls == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]any{"errors": []map[string]string{{"message": "boom"}}})
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": 1, "name": "robot$" + name, "secret": "s"})
+	})
+
+	synctest.Test(t, func(t *testing.T) {
+		if _, err := c.CreateRobot(t.Context(), RobotCreate{NameBase: "repo:acme/foo"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if calls != 2 {
+		t.Fatalf("got %d create calls, want 2", calls)
+	}
 }
 
 func TestCreateRobotRetriesOnConflict(t *testing.T) {
@@ -199,8 +226,8 @@ func TestCreateRobotGivesUpAfterAttempts(t *testing.T) {
 	}); !errors.Is(err, ErrRobotExists) {
 		t.Fatalf("err = %v, want ErrRobotExists", err)
 	}
-	if calls != createAttempts {
-		t.Fatalf("got %d create calls, want %d", calls, createAttempts)
+	if calls != nameConflictRetry.MaxAttempts {
+		t.Fatalf("got %d create calls, want %d", calls, nameConflictRetry.MaxAttempts)
 	}
 }
 
@@ -229,9 +256,12 @@ func TestCleanupRobots(t *testing.T) {
 		robotJSON{ID: 6, Name: "other-tool", Description: desc("someone-else", now.Add(-time.Hour))},
 		robotJSON{ID: 7, Name: "lookalike-tool", Description: desc("harbor-roboteer-other-tool v1", now.Add(-time.Hour))},
 		robotJSON{ID: 8, Name: "no-version", Description: desc("harbor-roboteer", now.Add(-time.Hour))},
+		robotJSON{ID: 9, Name: "expired-flaky", Description: desc("harbor-roboteer v1", now.Add(-time.Hour))},
 	)
 
 	var deleted []string
+	failingDeletes := 0
+	flakyFailed := false
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v2.0/robots":
@@ -245,7 +275,15 @@ func TestCleanupRobots(t *testing.T) {
 			id := strings.TrimPrefix(r.URL.Path, "/api/v2.0/robots/")
 			switch id {
 			case "2":
+				failingDeletes++
 				w.WriteHeader(http.StatusInternalServerError)
+			case "9":
+				if !flakyFailed {
+					flakyFailed = true
+					w.WriteHeader(http.StatusNotFound) // like a reverse proxy that can't reach Harbor
+					return
+				}
+				deleted = append(deleted, id)
 			case "3":
 				w.WriteHeader(http.StatusNotFound)
 			default:
@@ -255,20 +293,27 @@ func TestCleanupRobots(t *testing.T) {
 			t.Errorf("unexpected request %s %s", r.Method, r.URL)
 		}
 	}))
+	srv.Config.SetKeepAlivesEnabled(false) // idle connections would block synctest from advancing time
 	defer srv.Close()
 
 	c, err := New(mustParseURL(srv.URL), "admin", "secret")
 	if err != nil {
 		t.Fatal(err)
 	}
-	n, err := c.CleanupRobots(t.Context(), now)
+	var n int
+	synctest.Test(t, func(t *testing.T) {
+		n, err = c.CleanupRobots(t.Context(), now)
+	})
 	if err == nil || !strings.Contains(err.Error(), "expired-fails") {
 		t.Errorf("err = %v, want error mentioning expired-fails", err)
 	}
-	if n != 4 {
-		t.Errorf("deleted count = %d, want 4", n)
+	if failingDeletes != retry.DefaultBackoff.MaxAttempts {
+		t.Errorf("tried deleting expired-fails %d times, want %d", failingDeletes, retry.DefaultBackoff.MaxAttempts)
 	}
-	if got := strings.Join(deleted, ","); got != "1,4,8" {
-		t.Errorf("deleted IDs = %s, want 1,4,8", got)
+	if n != 5 {
+		t.Errorf("deleted count = %d, want 5", n)
+	}
+	if got := strings.Join(deleted, ","); got != "1,4,8,9" {
+		t.Errorf("deleted IDs = %s, want 1,4,8,9", got)
 	}
 }
