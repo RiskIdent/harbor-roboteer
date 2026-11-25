@@ -225,9 +225,10 @@ local roles = {
     repository: ['list', 'read', 'pull'],
     artifact: ['list', 'read'],
   },
-  projectCreator: {
-    project: ['create'],
-    label: ['create', 'update'],
+  push: self.pull {
+    // the "+" syntax means we extend the 'pull' lists instead of replacing them
+    repository+: ['push'],
+    artifact+: ['create'],
   },
 };
 
