@@ -56,6 +56,253 @@ mise x github:RiskIdent/harbor-roboteer@latest -- harbor-roboteer serve --help
 
 Attestations exist for the binaries, zip files, and tarballs: <https://github.com/RiskIdent/harbor-roboteer/attestations>
 
+## Config
+
+The config maps claims from a validated OIDC token to Harbor permissions. It is
+a [Jsonnet](https://jsonnet.org/) file that evaluates to a
+`function(claims)` and returns a list of permission objects. Pass the file with
+`--config` (or `$ROBOTEER_CONFIG`). Returning an empty list rejects the token.
+
+See [./roboteer.jsonnet](./roboteer.jsonnet) for a full example.
+
+Each permission has a `kind` (`project` or `system`) and an `access` object that
+maps Harbor resources to actions.
+
+- For project permissions, set `kind: 'project'`,
+  and set `namespace` to the Harbor project name or `*` for all projects.
+
+- For system permissions, set `kind: 'system'`,
+  and either omit `namespace` or set it to `/`.
+
+- `null` permission entries are ignored, and can be used to conditionally
+  grant access. In Jsonnet, `if someCondition then {...}` is the same as
+  `if someCondition then {...} else null`
+
+<details><summary>Deny everything</summary>
+
+```jsonnet
+function(claims) [
+  // returns no permissions => no access granted => means "reject all JWTs"
+]
+```
+
+</details>
+
+<details><summary>Grant unconditional pull access to one project</summary>
+
+```jsonnet
+function(claims) [
+  // Does not make use of 'claims' at all, so every JWT gets access to 'acme-shared'
+  {
+    kind: 'project',
+    namespace: 'acme-shared',
+    access: {
+      repository: ['list', 'read', 'pull'],
+      artifact: ['list', 'read'],
+    },
+  },
+]
+```
+
+</details>
+
+<details><summary>Grant pull access to project depending on token claim</summary>
+
+```jsonnet
+function(claims)
+  // Referring to GitHub OIDC claims.
+  // Look at documentation from your OIDC issuer for which claims are available.
+  local owner = std.get(claims, 'repository_owner');
+  local repository = std.get(claims, 'repository', '');
+
+  [
+    // Only some JWTs get access to `acme-shared`
+    if owner == 'acme' && repository != '' then {
+      kind: 'project',
+      namespace: 'acme-shared',
+      access: {
+        repository: ['list', 'read', 'pull'],
+        artifact: ['list', 'read'],
+      },
+    },
+  ]
+```
+
+</details>
+
+<details><summary>Grant conditional push access</summary>
+
+```jsonnet
+// you can define your own functions
+local projectPermission(name, access) = {
+  kind: 'project',
+  namespace: name,
+  access: access,
+};
+
+// or define custom data structures with for example your own concept of "roles"
+local roles = {
+  pull: {
+    repository: ['list', 'read', 'pull'],
+    artifact: ['list', 'read'],
+  },
+  push: self.pull {
+    // the "+" syntax means we extend the 'pull' lists instead of replacing them
+    repository+: ['push'],
+    artifact+: ['create'],
+  },
+};
+
+function(claims)
+  local owner = std.get(claims, 'repository_owner');
+  local repository = std.get(claims, 'repository', '');
+  local environment = std.get(claims, 'environment');
+
+  [
+    if owner == 'acme' && repository != '' then projectPermission('acme-shared', roles.pull),
+    if owner == 'acme' && repository != '' && environment == 'harbor' then
+      projectPermission('acme-shared', roles.push),
+  ]
+```
+
+</details>
+
+<details><summary>Grant shared, all-project, and system permissions by identity</summary>
+
+```jsonnet
+// Helpers to build the permission objects.
+local lib = {
+  // Permissions on one Harbor project.
+  project(name, access):: { kind: 'project', namespace: name, access: access },
+  // Permissions on all projects, including ones created later ("Cover all projects" in Harbor).
+  allProjects(access):: self.project('*', access),
+  // System-level permissions.
+  system(access):: { kind: 'system', namespace: '/', access: access },
+};
+
+local roles = {
+  pull: {
+    repository: ['list', 'read', 'pull'],
+    artifact: ['list', 'read'],
+  },
+  projectCreator: {
+    project: ['create'],
+    label: ['create', 'update'],
+  },
+};
+
+function(claims)
+  local owner = std.get(claims, 'repository_owner');
+  local repository = std.get(claims, 'repository', '');
+
+  [
+    if owner == 'acme' then
+      lib.project('acme-shared', roles.pull),
+    if owner == 'acme' && repository == 'acme/image-scanner' then
+      lib.allProjects(roles.pull),
+    if owner == 'acme' && repository == 'acme/harbor-bootstrap' then
+      lib.system(roles.projectCreator),
+  ]
+```
+
+</details>
+
+<details><summary>Grant dynamic access based on claims</summary>
+
+```jsonnet
+// Helpers to build the permission objects.
+local lib = {
+  // Permissions on one Harbor project.
+  project(name, access):: { kind: 'project', namespace: name, access: access },
+  // Permissions on all projects, including ones created later ("Cover all projects" in Harbor).
+  allProjects(access):: self.project('*', access),
+  // System-level permissions.
+  system(access):: { kind: 'system', namespace: '/', access: access },
+};
+
+local roles = {
+  pull: {
+    repository: ['list', 'read', 'pull'],
+    artifact: ['list', 'read'],
+  },
+  projectCreator: {
+    project: ['create'],
+    label: ['create', 'update'],
+  },
+};
+
+function(claims)
+  local owner = std.get(claims, 'repository_owner');
+  local repository = std.get(claims, 'repository', '');
+  local environment = std.get(claims, 'environment');
+  local harborProject = std.asciiLower(std.strReplace(repository, '/', '-'));
+
+  [
+    // with 'repository: acme/ImageScanner' in claim, grant access to 'acme-imagescanner' project
+    lib.project(harborProject, roles.pull),
+    // conditionally grant push access if using GitHub environment
+    if environment == 'harbor' then lib.project(harborProject, roles.push),
+  ]
+```
+
+</details>
+
+<details><summary>Grant deeply nested permissions from owner and repository claims</summary>
+
+```jsonnet
+// Helpers to build the permission objects.
+local lib = {
+  // Permissions on one Harbor project.
+  project(name, access):: { kind: 'project', namespace: name, access: access },
+  // Permissions on all projects, including ones created later ("Cover all projects" in Harbor).
+  allProjects(access):: self.project('*', access),
+  // System-level permissions.
+  system(access):: { kind: 'system', namespace: '/', access: access },
+};
+
+local roles = {
+  pull: {
+    repository: ['list', 'read', 'pull'],
+    artifact: ['list', 'read'],
+  },
+  push: self.pull {
+    repository+: ['push'],
+    artifact+: ['create'],
+  },
+};
+
+function(claims)
+  local owner = std.get(claims, 'repository_owner');
+  local repository = std.get(claims, 'repository', '');
+  local repositoryParts = std.split(repository, '/');
+  // For "acme/image-api", this becomes "image-api".
+  local repositoryName = repositoryParts[std.length(repositoryParts) - 1];
+  local environment = std.get(claims, 'environment');
+
+  // with flattening, you can define a tree of permission grants
+  std.flattenDeepArray([
+    if owner == 'acme' && repository != '' then [
+      lib.project(repositoryName, roles.pull),
+
+      if repositoryName == 'image-api' then [
+        lib.project('acme-shared', roles.pull),
+
+        if environment == 'harbor' then
+          lib.project(repositoryName, roles.push),
+      ],
+    ],
+
+    if owner == 'platform' && repository != '' then [
+      lib.project('platform-' + repositoryName, roles.pull),
+    ],
+  ])
+```
+
+</details>
+
+See <https://jsonnet.org/ref/stdlib.html> for list of Jsonnet utility
+functions available.
+
 ## Usage
 
 ### Usage from GitHub
