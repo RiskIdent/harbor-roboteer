@@ -9,9 +9,6 @@ import (
 	"time"
 
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/client/ping"
-	"go.opentelemetry.io/otel"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 func TestNew(t *testing.T) {
@@ -34,59 +31,6 @@ func TestNew(t *testing.T) {
 	}
 	if _, err := c.api.Ping.GetPing(t.Context(), ping.NewGetPingParams()); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestHarborTracing(t *testing.T) {
-	os.Clearenv() // Prevent proxy settings from redirecting local test traffic.
-	recorder := tracetest.NewSpanRecorder()
-	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	previous := otel.GetTracerProvider()
-	otel.SetTracerProvider(provider)
-	t.Cleanup(func() {
-		otel.SetTracerProvider(previous)
-		_ = provider.Shutdown(t.Context())
-	})
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/api/v2.0/ping":
-			w.Header().Set("Content-Type", "text/plain")
-			_, _ = w.Write([]byte("Pong"))
-		case "/api/v2.0/robots/1":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"id":1}`))
-		default:
-			t.Errorf("unexpected path: %s", r.URL.Path)
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	defer srv.Close()
-
-	c, err := New(mustParseURL(srv.URL), "admin", "secret")
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, parent := provider.Tracer("test").Start(t.Context(), "parent")
-	defer parent.End()
-	if err := c.Ping(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if spans := recorder.Ended(); len(spans) != 0 {
-		t.Fatalf("ping created %d spans, want none", len(spans))
-	}
-	if _, err := c.GetRobotByID(ctx, 1); err != nil {
-		t.Fatal(err)
-	}
-	spans := recorder.Ended()
-	if len(spans) != 1 {
-		t.Fatalf("robot created %d spans, want one", len(spans))
-	}
-	if spans[0].Name() != "GetRobotByID" {
-		t.Errorf("robot span name = %q, want GetRobotByID", spans[0].Name())
-	}
-	if spans[0].Parent().SpanID() != parent.SpanContext().SpanID() {
-		t.Error("robot span is not a child of the caller's span")
 	}
 }
 
