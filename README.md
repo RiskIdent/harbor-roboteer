@@ -28,7 +28,12 @@ See [./helm/harbor-roboteer](./helm/harbor-roboteer/README.md)
 Chart is available on GitHub Container Registry: <https://github.com/RiskIdent/harbor-roboteer/pkgs/container/charts%2Fharbor-roboteer>
 
 ```bash
-helm install harbor-roboteer oci://ghcr.io/riskident/charts/harbor-roboteer --version 1.0.0
+# must specify required flags in values.yaml, such as oidc-issuer, harbor-url, etc
+
+helm install harbor-roboteer oci://ghcr.io/riskident/charts/harbor-roboteer \
+  --version 1.0.0 \
+  -f values.yaml \
+  --set-file config=roboteer.jsonnet
 ```
 
 ### Docker
