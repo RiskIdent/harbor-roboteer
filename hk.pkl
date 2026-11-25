@@ -22,6 +22,12 @@ steps {
     // Remove trailing whitespace
     ["hk/trailing-whitespace"] = Builtins.trailing_whitespace
 
+    ["helm-docs"] = new Config.Step {
+      glob = "helm/harbor-roboteer/{Chart.yaml,README.md,README.md.gotmpl,values.yaml}"
+      check = "mise x helm-docs -- helm-docs --dry-run --chart-search-root helm/harbor-roboteer | diff -u helm/harbor-roboteer/README.md -"
+      fix = "mise x helm-docs -- helm-docs --chart-search-root helm/harbor-roboteer"
+    }
+
     // Linters
     ["actionlint"] = Builtins.actionlint
     ["mise"] = Builtins.mise
