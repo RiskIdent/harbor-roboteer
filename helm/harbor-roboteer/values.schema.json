@@ -46,7 +46,7 @@
       }
     },
     "cleanup": {
-      "description": "CronJob that runs \"harbor-roboteer cleanup\" to delete expired robot accounts created by harbor-roboteer. It uses the same image, env, envFrom, logLevel, service account and scheduling settings as the server.",
+      "description": "CronJob that runs \"harbor-roboteer cleanup\" to delete expired robot accounts created by harbor-roboteer.",
       "type": "object",
       "properties": {
         "cronjobAnnotations": {
@@ -233,7 +233,7 @@
       ]
     },
     "httpRoute": {
-      "description": "Expose the service via gateway-api HTTPRoute Requires Gateway API resources and a suitable controller installed in the cluster (see the [Gateway API guide](https://gateway-api.sigs.k8s.io/guides/)).",
+      "description": "Expose the service via gateway-api HTTPRoute",
       "type": "object",
       "properties": {
         "annotations": {

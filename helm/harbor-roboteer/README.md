@@ -15,12 +15,10 @@ helm install harbor-roboteer oci://ghcr.io/riskident/charts/harbor-roboteer --ve
 |-----|------|---------|-------------|
 | affinity | object | `{}` | Affinity rules for pod assignment. |
 | args | list | `[]` | Extra command-line arguments. |
-| autoscaling | object | `{"enabled":false,"maxReplicas":100,"minReplicas":1,"targetCPUUtilizationPercentage":80}` | Horizontal Pod Autoscaler settings. |
 | autoscaling.enabled | bool | `false` | Enable horizontal pod autoscaling. |
 | autoscaling.maxReplicas | int | `100` | Maximum number of replicas. |
 | autoscaling.minReplicas | int | `1` | Minimum number of replicas. |
 | autoscaling.targetCPUUtilizationPercentage | int | `80` | Target average CPU utilization percentage. |
-| cleanup | object | `{"cronjobAnnotations":{},"cronjobLabels":{},"enabled":true,"jobAnnotations":{},"jobLabels":{},"resources":{},"schedule":"0 * * * *"}` | CronJob that runs "harbor-roboteer cleanup" to delete expired robot accounts created by harbor-roboteer. It uses the same image, env, envFrom, logLevel, service account and scheduling settings as the server. |
 | cleanup.cronjobAnnotations | object | `{}` | Annotations to add to the CronJob. |
 | cleanup.cronjobLabels | object | `{}` | Labels to add to the CronJob. |
 | cleanup.enabled | bool | `true` | Enable the cleanup CronJob. |
@@ -43,18 +41,15 @@ helm install harbor-roboteer oci://ghcr.io/riskident/charts/harbor-roboteer --ve
 | flags.oidc-issuer | string | `""` | OIDC issuer URL. |
 | flags.robot-ttl | string | `"1h"` | Robot account time to live. |
 | fullnameOverride | string | `""` | Override the full release name. |
-| httpRoute | object | `{"annotations":{},"enabled":false,"hostnames":["harbor-roboteer.local"],"parentRefs":[{"name":"gateway","sectionName":"http"}],"rules":[{"matches":[{"path":{"type":"PathPrefix","value":"/headers"}}]}]}` | Expose the service via gateway-api HTTPRoute Requires Gateway API resources and a suitable controller installed in the cluster (see the [Gateway API guide](https://gateway-api.sigs.k8s.io/guides/)). |
 | httpRoute.annotations | object | `{}` | HTTPRoute annotations. |
 | httpRoute.enabled | bool | `false` | Enable HTTPRoute. |
 | httpRoute.hostnames | list | `["harbor-roboteer.local"]` | Hostnames matched by the HTTP request. |
 | httpRoute.parentRefs | list | `[{"name":"gateway","sectionName":"http"}]` | Gateways this Route is attached to. |
 | httpRoute.rules | list | `[{"matches":[{"path":{"type":"PathPrefix","value":"/headers"}}]}]` | Rules and filters applied to the HTTPRoute. |
-| image | object | `{"pullPolicy":"IfNotPresent","repository":"ghcr.io/riskident/harbor-roboteer","tag":""}` | Container image settings. |
 | image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
 | image.repository | string | `"ghcr.io/riskident/harbor-roboteer"` | Image repository. |
 | image.tag | string | `""` | Image tag. Defaults to the chart appVersion. |
 | imagePullSecrets | list | `[]` | Secrets for pulling an image from a private repository. |
-| ingress | object | `{"annotations":{},"className":"","enabled":false,"hosts":[{"host":"harbor-roboteer.local","paths":[{"path":"/","pathType":"ImplementationSpecific"}]}],"tls":[]}` | Ingress settings. |
 | ingress.annotations | object | `{}` | Annotations to add to the Ingress. |
 | ingress.className | string | `""` | Ingress class name. |
 | ingress.enabled | bool | `false` | Enable Ingress. |
@@ -67,7 +62,6 @@ helm install harbor-roboteer oci://ghcr.io/riskident/charts/harbor-roboteer --ve
 | metrics.serviceMonitor.interval | string | `""` | Scrape interval. Empty uses the Prometheus default. |
 | metrics.serviceMonitor.labels | object | `{}` | Extra labels, e.g. to match the Prometheus serviceMonitorSelector. |
 | nameOverride | string | `""` | Override the chart name. |
-| networkPolicy | object | `{"egress":[],"enabled":true,"ingressFrom":[],"metricsFrom":[]}` | Restrict network traffic to the Pods. Requires a CNI that enforces NetworkPolicy. |
 | networkPolicy.egress | list | `[]` | Egress rules for the server and cleanup Pods. Empty leaves egress unrestricted. |
 | networkPolicy.enabled | bool | `true` | Enable NetworkPolicy. |
 | networkPolicy.ingressFrom | list | `[]` | Peers allowed to reach the HTTP port. Empty allows any source. |
@@ -80,10 +74,8 @@ helm install harbor-roboteer oci://ghcr.io/riskident/charts/harbor-roboteer --ve
 | replicaCount | int | `1` | Number of harbor-roboteer replicas. |
 | resources | object | `{}` | Resource requests and limits for the server container. |
 | securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"privileged":false,"readOnlyRootFilesystem":true}` | Container-level security settings. Defaults satisfy the "restricted" Pod Security Standard. |
-| service | object | `{"port":8080,"type":"ClusterIP"}` | Kubernetes Service settings. |
 | service.port | int | `8080` | Kubernetes Service port. |
 | service.type | string | `"ClusterIP"` | Kubernetes Service type. |
-| serviceAccount | object | `{"annotations":{},"automount":true,"create":true,"name":""}` | Service account settings. |
 | serviceAccount.annotations | object | `{}` | Annotations to add to the ServiceAccount. |
 | serviceAccount.automount | bool | `true` | Automount the service account token. |
 | serviceAccount.create | bool | `true` | Create a service account. |

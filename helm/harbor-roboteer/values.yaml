@@ -1,7 +1,7 @@
 # -- Number of harbor-roboteer replicas.
 replicaCount: 1 # @schema type: integer; minimum: 0
 
-# -- Container image settings.
+# @schema description: Container image settings.
 image: # @schema skipProperties; $ref: ./schema-utils.yaml#/definitions/image
   # -- Image repository.
   repository: ghcr.io/riskident/harbor-roboteer
@@ -21,7 +21,7 @@ fullnameOverride: ""
 commonLabels: {} # @schema additionalProperties: {type: string}
   # team: platform
 
-# -- Service account settings.
+# @schema description: Service account settings.
 serviceAccount:
   # -- Create a service account.
   create: true
@@ -59,14 +59,14 @@ securityContext: # @schema skipProperties; $ref: $k8s/_definitions.json#/definit
     drop:
       - ALL
 
-# -- Kubernetes Service settings.
+# @schema description: Kubernetes Service settings.
 service:
   # -- Kubernetes Service type.
   type: ClusterIP # @schema enum: [ClusterIP, NodePort, LoadBalancer, ExternalName]
   # -- Kubernetes Service port.
   port: 8080 # @schema type: integer; minimum: 1; maximum: 65535
 
-# -- Ingress settings.
+# @schema description: Ingress settings.
 ingress:
   # -- Enable Ingress.
   enabled: false
@@ -88,7 +88,7 @@ ingress:
     #   hosts:
     #     - harbor-roboteer.local
 
-# -- Expose the service via gateway-api HTTPRoute
+# @schema description: Expose the service via gateway-api HTTPRoute
 # Requires Gateway API resources and a suitable controller installed in the cluster
 # (see the [Gateway API guide](https://gateway-api.sigs.k8s.io/guides/)).
 httpRoute:
@@ -126,7 +126,7 @@ httpRoute:
   #     - name: version
   #       value: v2
 
-# -- Restrict network traffic to the Pods. Requires a CNI that enforces NetworkPolicy.
+# @schema description: Restrict network traffic to the Pods. Requires a CNI that enforces NetworkPolicy.
 networkPolicy:
   # -- Enable NetworkPolicy.
   enabled: true
@@ -175,7 +175,7 @@ readinessProbe: # @schema skipProperties; $ref: $k8s/_definitions.json#/definiti
     path: /api/roboteer/v1/health
     port: http
 
-# -- Horizontal Pod Autoscaler settings.
+# @schema description: Horizontal Pod Autoscaler settings.
 autoscaling:
   # -- Enable horizontal pod autoscaling.
   enabled: false
@@ -217,7 +217,7 @@ tracing:
     # -- OTLP request compression.
     compression: none # @schema enum: [none, gzip]
 
-# -- CronJob that runs "harbor-roboteer cleanup" to delete expired robot accounts created by harbor-roboteer.
+# @schema description: CronJob that runs "harbor-roboteer cleanup" to delete expired robot accounts created by harbor-roboteer.
 # It uses the same image, env, envFrom, logLevel, service account and scheduling settings as the server.
 cleanup:
   # -- Enable the cleanup CronJob.
