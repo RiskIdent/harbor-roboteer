@@ -11,7 +11,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel/trace"
 )
 
 type Middleware func(http.Handler) http.Handler
@@ -94,14 +93,6 @@ func loggingHandler(logger *slog.Logger, next http.Handler, skip func(*http.Requ
 			slog.String("remoteAddr", r.RemoteAddr),
 			slog.String("userAgent", r.UserAgent()),
 		}
-		// Only set when the tracing middleware started a span (filtered paths have none)
-		if sc := trace.SpanContextFromContext(r.Context()); sc.IsValid() {
-			attrs = append(attrs,
-				slog.String("traceId", sc.TraceID().String()),
-				slog.String("spanId", sc.SpanID().String()),
-			)
-		}
-
 		logger.LogAttrs(r.Context(), logLevel, "request", attrs...)
 	})
 }
