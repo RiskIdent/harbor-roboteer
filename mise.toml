@@ -5,6 +5,7 @@ go = "1.27.4"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.9.0"
 golangci-lint = "2.15.0"
 helm = "4.3.1"
+helm-docs = "1.14.2"
 hk = "2.7.0"
 pkl = "0.32.1"
 rumdl = "v0.3.0"
@@ -25,6 +26,10 @@ helm schema \
 [tasks."lint:helm"]
 description = "Lint Helm chart"
 run = "helm lint --strict helm/harbor-roboteer"
+
+[tasks."docs:helm"]
+description = "Generate Helm chart documentation"
+run = "helm-docs --chart-search-root helm/harbor-roboteer"
 
 [tasks.pre-commit]
 description = "Runs the hk pre-commit checks, as if you were creating a Git commit"
