@@ -40,7 +40,18 @@
         },
         "targetCPUUtilizationPercentage": {
           "description": "Target average CPU utilization percentage.",
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "targetMemoryUtilizationPercentage": {
+          "description": "Target average memory utilization percentage.",
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1
         }
       }
@@ -416,7 +427,7 @@
           "type": "boolean"
         },
         "port": {
-          "description": "Metrics server port, passed as --metrics-addr.",
+          "description": "Metrics server port, passed as `--metrics-addr` flag.",
           "type": "integer",
           "maximum": 65535,
           "minimum": 1
