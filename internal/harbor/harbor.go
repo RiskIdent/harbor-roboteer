@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-openapi/runtime"
 	httptransport "github.com/go-openapi/runtime/client"
+	"github.com/go-openapi/strfmt"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	v2client "github.com/goharbor/go-client/pkg/sdk/v2.0/client"
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/client/ping"
@@ -49,14 +50,19 @@ func New(harborURL *url.URL, username, password string) (*Client, error) {
 	if harborURL.Scheme == "" || harborURL.Host == "" {
 		return nil, fmt.Errorf("harbor url %q must include scheme and host, e.g. https://harbor.example.com", harborURL)
 	}
-	harborURL.Path = v2client.DefaultBasePath
+	return &Client{api: newHarborAPI(harborURL, username, password)}, nil
+}
 
-	return &Client{
-		api: v2client.New(v2client.Config{
-			URL:      harborURL,
-			AuthInfo: httptransport.BasicAuth(username, password),
-		}),
-	}, nil
+// newHarborAPI only populates the services we use, as [v2client.New] can't
+// take the OpenTelemetry-instrumented transport.
+func newHarborAPI(harborURL *url.URL, username, password string) *v2client.HarborAPI {
+	transport := httptransport.New(harborURL.Host, v2client.DefaultBasePath, []string{harborURL.Scheme}).WithOpenTelemetry()
+	auth := httptransport.BasicAuth(username, password)
+	return &v2client.HarborAPI{
+		Transport: transport,
+		Ping:      ping.New(transport, strfmt.Default, auth),
+		Robot:     robot.New(transport, strfmt.Default, auth),
+	}
 }
 
 // GetRobotByID returns the robot account with the given ID, or ErrRobotNotFound.
