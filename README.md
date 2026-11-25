@@ -65,6 +65,9 @@ Use our GitHub Action: <https://github.com/RiskIdent/harbor-roboteer-action>
 ```yaml
 on:
   pull_request:
+  push:
+    tags:
+      - "v*"
 
 jobs:
   docker-pull:
@@ -72,6 +75,9 @@ jobs:
 
     permissions:
       id-token: write # This is required for requesting the JWT
+
+    # use 'harbor' env when building and pushing a new release
+    environment: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && 'harbor' || '' }}
 
     steps:
       - name: Login to Harbor
@@ -84,6 +90,13 @@ jobs:
         run: |
           docker pull harbor.example.com/foo/bar
 ```
+
+For additional hardening: configure harbor-roboteer to only grant push access
+when using a GitHub environment, and then configure that environment to only
+be allowed to be used from certain branches/tags.
+Such as limiting the `harbor` environment used above to
+"Selected branches and tags" in the environment settings,
+and add a filter for `v*` tags.
 
 ### Using roboteer's API manually
 
@@ -174,6 +187,16 @@ sequenceDiagram
         Harbor-->>harbor-roboteer:
     end
 ```
+
+## Security considerations
+
+1. If you grant access to create or manage robot accounts, then the user could
+   use the ephemeral robot account to create a hidden persistent robot account.
+   In harbor-roboteer we only grant the permissions that the config file
+   specifies, but we do not protect against misconfigurations like this.
+
+2. Config is not automatically reloaded. Make sure harbor-roboteer is restarted
+   after you have changed the config to not have stale authorization.
 
 ## Development
 
