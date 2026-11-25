@@ -127,11 +127,20 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	created, err := s.Harbor.CreateRobot(ctx, robot)
 	s.countRobotOp("create", err)
 	if errors.Is(err, harbor.ErrRobotExists) {
+		s.Log.ErrorContext(ctx, "create robot account",
+			slog.String("sub", sub),
+			slog.Any("permissions", permissions),
+			slog.Any("error", err),
+		)
 		writeProblem(w, http.StatusConflict, err.Error())
 		return
 	}
 	if err != nil {
-		s.Log.ErrorContext(ctx, "create robot account", slog.Any("error", err))
+		s.Log.ErrorContext(ctx, "create robot account",
+			slog.String("sub", sub),
+			slog.Any("permissions", permissions),
+			slog.Any("error", err),
+		)
 		writeProblem(w, http.StatusBadGateway, "failed to create robot account in Harbor")
 		return
 	}
