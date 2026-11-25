@@ -238,7 +238,7 @@ function(claims)
   local environment = std.get(claims, 'environment');
   local harborProject = std.asciiLower(std.strReplace(repository, '/', '-'));
 
-  [
+  if owner == 'acme' && repository != '' then [
     // with 'repository: acme/ImageScanner' in claim, grant access to 'acme-imagescanner' project
     lib.project(harborProject, roles.pull),
     // conditionally grant push access if using GitHub environment
