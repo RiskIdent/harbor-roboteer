@@ -117,6 +117,10 @@ policy against their claims, and creates Harbor robot accounts.`,
 		}
 		reg.MustRegister(s.Collectors()...)
 
+		log.InfoContext(ctx, "starting server",
+			slog.String("addr", s.Addr().String()),
+			slog.String("metricsAddr", ms.Addr().String()))
+
 		g, gctx := errgroup.WithContext(ctx)
 		g.Go(func() error {
 			return ms.Start(gctx)

@@ -154,7 +154,8 @@ func TestCreateRobotRetriesOnServerError(t *testing.T) {
 	c := fakeHarbor(t, func(w http.ResponseWriter, name string) {
 		calls++
 		if calls == 1 {
-			w.WriteHeader(http.StatusServiceUnavailable)
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]any{"errors": []map[string]string{{"message": "boom"}}})
 			return
 		}
 		w.WriteHeader(http.StatusCreated)
