@@ -20,6 +20,7 @@ helm install harbor-roboteer oci://ghcr.io/riskident/charts/harbor-roboteer --ve
 | autoscaling.maxReplicas | int | `100` | Maximum number of replicas. |
 | autoscaling.minReplicas | int | `1` | Minimum number of replicas. |
 | autoscaling.targetCPUUtilizationPercentage | int | `80` | Target average CPU utilization percentage. |
+| cleanup | object | `{"cronjobAnnotations":{},"cronjobLabels":{},"enabled":true,"jobAnnotations":{},"jobLabels":{},"resources":{},"schedule":"0 * * * *"}` | CronJob that runs "harbor-roboteer cleanup" to delete expired robot accounts created by harbor-roboteer. It uses the same image, env, envFrom, logLevel, service account and scheduling settings as the server. |
 | cleanup.cronjobAnnotations | object | `{}` | Annotations to add to the CronJob. |
 | cleanup.cronjobLabels | object | `{}` | Labels to add to the CronJob. |
 | cleanup.enabled | bool | `true` | Enable the cleanup CronJob. |
