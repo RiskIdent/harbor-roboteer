@@ -411,10 +411,11 @@ enforced by the cleanup task.
 sequenceDiagram
     actor GitHub Action workflow
 
+    Note over harbor-roboteer,GitHub OIDC IdP: preparation
     harbor-roboteer->>GitHub OIDC IdP: get jwks
     GitHub OIDC IdP-->>harbor-roboteer:
-    Note over harbor-roboteer,GitHub OIDC IdP: preparation
 
+    Note over GitHub Action workflow,Harbor: main workflow
     activate GitHub Action workflow
     GitHub Action workflow->>GitHub OIDC IdP: request OIDC token
     GitHub OIDC IdP-->>GitHub Action workflow:
@@ -426,12 +427,18 @@ sequenceDiagram
 
     GitHub Action workflow->>Harbor: docker login with robot account
     Harbor-->>GitHub Action workflow:
+
+    GitHub Action workflow->>+harbor-roboteer: delete Harbor robot account
+    harbor-roboteer->>+Harbor: delete robot account
+    Harbor-->>harbor-roboteer:
+    harbor-roboteer-->>-GitHub Action workflow:
     deactivate GitHub Action workflow
 
     loop
+        Note over harbor-roboteer,Harbor: background cron job
         harbor-roboteer->>Harbor: get robot accounts
         Harbor-->>harbor-roboteer:
-        harbor-roboteer->>Harbor: delete expired robot accounts
+        harbor-roboteer->>Harbor: delete forgotten expired robot accounts
         Harbor-->>harbor-roboteer:
     end
 ```
