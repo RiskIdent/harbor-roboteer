@@ -59,12 +59,13 @@ func New(harborURL *url.URL, username, password string) (*Client, error) {
 // newHarborAPI only populates the services we use, as [v2client.New] can't
 // take the OpenTelemetry-instrumented transport.
 func newHarborAPI(harborURL *url.URL, username, password string) *v2client.HarborAPI {
-	transport := httptransport.New(harborURL.Host, v2client.DefaultBasePath, []string{harborURL.Scheme}).WithOpenTelemetry()
+	transport := httptransport.New(harborURL.Host, v2client.DefaultBasePath, []string{harborURL.Scheme})
+	tracedTransport := transport.WithOpenTelemetry()
 	auth := httptransport.BasicAuth(username, password)
 	return &v2client.HarborAPI{
-		Transport: transport,
+		Transport: tracedTransport,
 		Ping:      ping.New(transport, strfmt.Default, auth),
-		Robot:     robot.New(transport, strfmt.Default, auth),
+		Robot:     robot.New(tracedTransport, strfmt.Default, auth),
 	}
 }
 
