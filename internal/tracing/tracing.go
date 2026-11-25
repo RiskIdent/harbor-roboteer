@@ -2,7 +2,6 @@ package tracing
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -23,7 +22,11 @@ import (
 // Initializes an OTLP exporter, and configures the corresponding trace provider.
 func NewTracerProvider(ctx context.Context, logger *slog.Logger) (*tracesdk.TracerProvider, error) {
 	logger = logger.WithGroup("otel")
-	otel.SetLogger(logr.FromSlogHandler(logger.Handler()).V(8))
+	otel.SetLogger(logr.FromSlogHandler(logger.Handler()))
+	// The SDK reports export failures here instead of to the logger.
+	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
+		logger.ErrorContext(context.WithoutCancel(ctx), "OpenTelemetry error", "error", err)
+	}))
 
 	if strings.EqualFold(os.Getenv("OTEL_SDK_DISABLED"), "true") {
 		logger.DebugContext(ctx, "Tracing is disabled using OTEL_SDK_DISABLED.")
@@ -60,6 +63,8 @@ func NewTracerProvider(ctx context.Context, logger *slog.Logger) (*tracesdk.Trac
 
 	if autoexport.IsNoneSpanExporter(spanExporter) {
 		logger.DebugContext(ctx, "No tracing/span exporters configured")
+	} else {
+		logger.InfoContext(ctx, "Tracing is enabled", "exporter", fmt.Sprintf("%T", spanExporter))
 	}
 
 	// Register the trace exporter with a TracerProvider, using a batch
@@ -93,9 +98,9 @@ func ShutdownTracer(ctx context.Context, logger *slog.Logger, traceProvider *tra
 	}
 	logger = logger.WithGroup("otel")
 	logger.DebugContext(ctx, "Shutting down tracer")
-	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	if err := traceProvider.Shutdown(ctx); err != nil && !errors.Is(err, context.DeadlineExceeded) {
-		logger.WarnContext(ctx, "Error while shutting down trace exporter", "error", err)
+	if err := traceProvider.Shutdown(ctx); err != nil {
+		logger.WarnContext(ctx, "Error while shutting down trace exporter, unexported spans are lost", "error", err)
 	}
 }

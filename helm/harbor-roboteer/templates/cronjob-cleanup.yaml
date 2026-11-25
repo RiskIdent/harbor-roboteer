@@ -70,9 +70,9 @@ spec:
                 - --{{ $flag }}={{ . }}
                 {{- end }}
                 {{- end }}
-              {{- with .Values.env }}
+              {{- with include "harbor-roboteer.env" . | trim }}
               env:
-                {{- toYaml . | nindent 16 }}
+                {{- . | nindent 16 }}
               {{- end }}
               {{- with .Values.envFrom }}
               envFrom:
