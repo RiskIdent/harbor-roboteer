@@ -86,6 +86,10 @@ Configure `harbor-roboteer` to trust your OIDC issuer via the
 `--oidc-issuer` flag or `ROBOTEER_OIDC_ISSUER` environment variable.
 E.g: `--oidc-issuer=https://token.actions.githubusercontent.com`
 
+Request an OIDC token whose `aud` includes `harbor-roboteer` (the default).
+If you use a different audience, configure the server to match it via
+`--oidc-audience` or `ROBOTEER_OIDC_AUDIENCE`.
+
 Then when you have an OIDC token, send it to the `POST /api/roboteer/v1/robot`
 endpoint.
 
