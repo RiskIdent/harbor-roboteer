@@ -5,6 +5,7 @@
     "affinity": {
       "allOf": [
         {
+          "description": "Affinity rules for pod assignment.",
           "type": "object"
         },
         {
@@ -13,56 +14,68 @@
       ]
     },
     "args": {
+      "description": "Extra command-line arguments.",
       "type": "array",
       "items": {
         "type": "string"
       }
     },
     "autoscaling": {
+      "description": "Horizontal Pod Autoscaler settings.",
       "type": "object",
       "properties": {
         "enabled": {
+          "description": "Enable horizontal pod autoscaling.",
           "type": "boolean"
         },
         "maxReplicas": {
+          "description": "Maximum number of replicas.",
           "type": "integer",
           "minimum": 1
         },
         "minReplicas": {
+          "description": "Minimum number of replicas.",
           "type": "integer",
           "minimum": 1
         },
         "targetCPUUtilizationPercentage": {
+          "description": "Target average CPU utilization percentage.",
           "type": "integer",
           "minimum": 1
         }
       }
     },
     "cleanup": {
+      "description": "CronJob that runs \"harbor-roboteer cleanup\" to delete expired robot accounts created by harbor-roboteer. It uses the same image, env, envFrom, logLevel, service account and scheduling settings as the server.",
       "type": "object",
       "properties": {
         "cronjobAnnotations": {
+          "description": "Annotations to add to the CronJob.",
           "type": "object",
           "additionalProperties": {
             "type": "string"
           }
         },
         "cronjobLabels": {
+          "description": "Labels to add to the CronJob.",
           "type": "object",
           "additionalProperties": {
             "type": "string"
           }
         },
         "enabled": {
+          "description": "Enable the cleanup CronJob.",
           "type": "boolean"
         },
         "jobAnnotations": {
+          "description": "Annotations to add to the Job.",
           "type": "object",
           "additionalProperties": {
             "type": "string"
           }
         },
         "jobLabels": {
+          "description": "Labels to add to the Job.",
           "type": "object",
           "additionalProperties": {
             "type": "string"
@@ -71,6 +84,7 @@
         "resources": {
           "allOf": [
             {
+              "description": "Resource requests and limits for the cleanup container.",
               "type": "object"
             },
             {
@@ -79,44 +93,52 @@
           ]
         },
         "schedule": {
+          "description": "Cron schedule. See [Cron schedule syntax](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-syntax).",
           "type": "string"
         }
       }
     },
     "commonLabels": {
+      "description": "Labels added to all resources created by this chart.",
       "type": "object",
       "additionalProperties": {
         "type": "string"
       }
     },
     "config": {
+      "description": "Jsonnet config mapping token claims to Harbor permissions, see roboteer.jsonnet in the repo. The default rejects every token.",
       "type": "string"
     },
     "deploymentAnnotations": {
+      "description": "Annotations to add to the Deployment.",
       "type": "object",
       "additionalProperties": {
         "type": "string"
       }
     },
     "deploymentLabels": {
+      "description": "Labels to add to the Deployment.",
       "type": "object",
       "additionalProperties": {
         "type": "string"
       }
     },
     "env": {
+      "description": "Environment variables for the server and cleanup containers.",
       "type": "array",
       "items": {
         "$ref": "#/$defs/_definitions.json/definitions/io.k8s.api.core.v1.EnvVar"
       }
     },
     "envFrom": {
+      "description": "Load all keys of a Secret or ConfigMap as environment variables.",
       "type": "array",
       "items": {
         "$ref": "#/$defs/_definitions.json/definitions/io.k8s.api.core.v1.EnvFromSource"
       }
     },
     "existingConfigMap": {
+      "description": "Name of an existing ConfigMap to use instead of \"config\". It must have the key \"roboteer.jsonnet\". Pods are not restarted when it changes.",
       "type": "string"
     },
     "flags": {
@@ -124,6 +146,7 @@
       "type": "object",
       "properties": {
         "harbor-url": {
+          "description": "Harbor URL.",
           "examples": [
             "https://harbor.example.com",
             "http://harbor-core"
@@ -134,12 +157,14 @@
           ]
         },
         "harbor-username": {
+          "description": "Harbor username.",
           "type": [
             "string",
             "null"
           ]
         },
         "log-format": {
+          "description": "Log format of the app.",
           "default": "json",
           "type": [
             "string",
@@ -152,6 +177,7 @@
           ]
         },
         "log-level": {
+          "description": "Log level of the app.",
           "default": "info",
           "type": [
             "string",
@@ -166,6 +192,7 @@
           ]
         },
         "oidc-audience": {
+          "description": "OIDC audience.",
           "default": "harbor-roboteer",
           "type": [
             "string",
@@ -173,6 +200,7 @@
           ]
         },
         "oidc-issuer": {
+          "description": "OIDC issuer URL.",
           "examples": [
             "https://token.actions.githubusercontent.com",
             "https://github-enterprise.example.com/_services/token"
@@ -183,6 +211,7 @@
           ]
         },
         "robot-ttl": {
+          "description": "Robot account time to live.",
           "default": "1h",
           "type": [
             "string",
@@ -192,6 +221,7 @@
       }
     },
     "fullnameOverride": {
+      "description": "Override the full release name.",
       "type": "string"
     },
     "global": {
@@ -203,21 +233,24 @@
       ]
     },
     "httpRoute": {
-      "description": "Expose the service via gateway-api HTTPRoute Requires Gateway API resources and suitable controller installed within the cluster (see: https://gateway-api.sigs.k8s.io/guides/)",
+      "description": "Expose the service via gateway-api HTTPRoute Requires Gateway API resources and a suitable controller installed in the cluster (see the [Gateway API guide](https://gateway-api.sigs.k8s.io/guides/)).",
       "type": "object",
       "properties": {
         "annotations": {
+          "description": "HTTPRoute annotations.",
           "type": "object",
           "additionalProperties": {
             "type": "string"
           }
         },
         "enabled": {
+          "description": "Enable HTTPRoute.",
           "type": "boolean"
         },
         "hostnames": {
           "allOf": [
             {
+              "description": "Hostnames matched by the HTTP request.",
               "type": "array",
               "items": {
                 "type": "string"
@@ -231,6 +264,7 @@
         "parentRefs": {
           "allOf": [
             {
+              "description": "Gateways this Route is attached to.",
               "type": "array",
               "items": {
                 "type": "object",
@@ -252,6 +286,7 @@
         "rules": {
           "allOf": [
             {
+              "description": "Rules and filters applied to the HTTPRoute.",
               "type": "array",
               "items": {
                 "type": "object",
@@ -288,6 +323,7 @@
     "image": {
       "allOf": [
         {
+          "description": "Container image settings.",
           "type": "object"
         },
         {
@@ -298,6 +334,7 @@
     "imagePullSecrets": {
       "allOf": [
         {
+          "description": "Secrets for pulling an image from a private repository.",
           "type": "array"
         },
         {
@@ -306,21 +343,26 @@
       ]
     },
     "ingress": {
+      "description": "Ingress settings.",
       "type": "object",
       "properties": {
         "annotations": {
+          "description": "Annotations to add to the Ingress.",
           "type": "object",
           "additionalProperties": {
             "type": "string"
           }
         },
         "className": {
+          "description": "Ingress class name.",
           "type": "string"
         },
         "enabled": {
+          "description": "Enable Ingress.",
           "type": "boolean"
         },
         "hosts": {
+          "description": "Ingress host and path rules.",
           "type": "array",
           "items": {
             "type": "object",
@@ -346,6 +388,7 @@
           }
         },
         "tls": {
+          "description": "Ingress TLS configuration.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/_definitions.json/definitions/io.k8s.api.networking.v1.IngressTLS"
@@ -356,6 +399,7 @@
     "livenessProbe": {
       "allOf": [
         {
+          "description": "Liveness probe settings.",
           "type": "object"
         },
         {
@@ -364,12 +408,15 @@
       ]
     },
     "metrics": {
+      "description": "Prometheus metrics settings. Metrics are served at /metrics.",
       "type": "object",
       "properties": {
         "enabled": {
+          "description": "Enable the metrics listener and expose it through a separate ClusterIP Service.",
           "type": "boolean"
         },
         "port": {
+          "description": "Metrics server port, passed as --metrics-addr.",
           "type": "integer",
           "maximum": 65535,
           "minimum": 1
@@ -378,12 +425,15 @@
           "type": "object",
           "properties": {
             "enabled": {
+              "description": "Create a Prometheus Operator ServiceMonitor. Requires its CRDs.",
               "type": "boolean"
             },
             "interval": {
+              "description": "Scrape interval. Empty uses the Prometheus default.",
               "type": "string"
             },
             "labels": {
+              "description": "Extra labels, e.g. to match the Prometheus serviceMonitorSelector.",
               "type": "object",
               "additionalProperties": {
                 "type": "string"
@@ -394,27 +444,33 @@
       }
     },
     "nameOverride": {
+      "description": "Override the chart name.",
       "type": "string"
     },
     "networkPolicy": {
+      "description": "Restrict network traffic to the Pods. Requires a CNI that enforces NetworkPolicy.",
       "type": "object",
       "properties": {
         "egress": {
+          "description": "Egress rules for the server and cleanup Pods. Empty leaves egress unrestricted.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/_definitions.json/definitions/io.k8s.api.networking.v1.NetworkPolicyEgressRule"
           }
         },
         "enabled": {
+          "description": "Enable NetworkPolicy.",
           "type": "boolean"
         },
         "ingressFrom": {
+          "description": "Peers allowed to reach the HTTP port. Empty allows any source.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/_definitions.json/definitions/io.k8s.api.networking.v1.NetworkPolicyPeer"
           }
         },
         "metricsFrom": {
+          "description": "Peers allowed to reach the metrics port. Empty allows any source.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/_definitions.json/definitions/io.k8s.api.networking.v1.NetworkPolicyPeer"
@@ -423,18 +479,21 @@
       }
     },
     "nodeSelector": {
+      "description": "Node labels for pod assignment.",
       "type": "object",
       "additionalProperties": {
         "type": "string"
       }
     },
     "podAnnotations": {
+      "description": "Annotations to add to Pods.",
       "type": "object",
       "additionalProperties": {
         "type": "string"
       }
     },
     "podLabels": {
+      "description": "Labels to add to Pods.",
       "type": "object",
       "additionalProperties": {
         "type": "string"
@@ -443,6 +502,7 @@
     "podSecurityContext": {
       "allOf": [
         {
+          "description": "Pod-level security settings. Defaults satisfy the \"restricted\" Pod Security Standard.",
           "type": "object"
         },
         {
@@ -453,6 +513,7 @@
     "readinessProbe": {
       "allOf": [
         {
+          "description": "Readiness probe settings.",
           "type": "object"
         },
         {
@@ -461,12 +522,14 @@
       ]
     },
     "replicaCount": {
+      "description": "Number of harbor-roboteer replicas.",
       "type": "integer",
       "minimum": 0
     },
     "resources": {
       "allOf": [
         {
+          "description": "Resource requests and limits for the server container.",
           "type": "object"
         },
         {
@@ -477,6 +540,7 @@
     "securityContext": {
       "allOf": [
         {
+          "description": "Container-level security settings. Defaults satisfy the \"restricted\" Pod Security Standard.",
           "type": "object"
         },
         {
@@ -485,14 +549,17 @@
       ]
     },
     "service": {
+      "description": "Kubernetes Service settings.",
       "type": "object",
       "properties": {
         "port": {
+          "description": "Kubernetes Service port.",
           "type": "integer",
           "maximum": 65535,
           "minimum": 1
         },
         "type": {
+          "description": "Kubernetes Service type.",
           "type": "string",
           "enum": [
             "ClusterIP",
@@ -504,26 +571,32 @@
       }
     },
     "serviceAccount": {
+      "description": "Service account settings.",
       "type": "object",
       "properties": {
         "annotations": {
+          "description": "Annotations to add to the ServiceAccount.",
           "type": "object",
           "additionalProperties": {
             "type": "string"
           }
         },
         "automount": {
+          "description": "Automount the service account token.",
           "type": "boolean"
         },
         "create": {
+          "description": "Create a service account.",
           "type": "boolean"
         },
         "name": {
+          "description": "Service account name. When empty and create is true, the chart generates a name.",
           "type": "string"
         }
       }
     },
     "tolerations": {
+      "description": "Tolerations for pod assignment.",
       "type": "array",
       "items": {
         "$ref": "#/$defs/_definitions.json/definitions/io.k8s.api.core.v1.Toleration"
@@ -538,6 +611,7 @@
           "type": "boolean"
         },
         "exporter": {
+          "description": "Tracing exporter.",
           "type": "string",
           "enum": [
             "otlp",
@@ -550,6 +624,7 @@
           "type": "object",
           "properties": {
             "compression": {
+              "description": "OTLP request compression.",
               "type": "string",
               "enum": [
                 "none",
@@ -557,9 +632,11 @@
               ]
             },
             "endpoint": {
+              "description": "OTLP exporter endpoint.",
               "type": "string"
             },
             "protocol": {
+              "description": "OTLP protocol.",
               "type": "string",
               "enum": [
                 "grpc",
@@ -572,12 +649,14 @@
       }
     },
     "volumeMounts": {
+      "description": "Additional volume mounts on the output Deployment.",
       "type": "array",
       "items": {
         "$ref": "#/$defs/_definitions.json/definitions/io.k8s.api.core.v1.VolumeMount"
       }
     },
     "volumes": {
+      "description": "Additional volumes on the output Deployment.",
       "type": "array",
       "items": {
         "$ref": "#/$defs/_definitions.json/definitions/io.k8s.api.core.v1.Volume"
