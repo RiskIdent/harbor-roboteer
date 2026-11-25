@@ -11,8 +11,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/RiskIdent/harbor-roboteer/internal/retry"
 	"github.com/lestrrat-go/jwx/v4/jwk"
 )
 
@@ -84,10 +86,20 @@ func TestNewFailsOnIssuerMismatch(t *testing.T) {
 
 func TestNewFailsWhenNoDiscovery(t *testing.T) {
 	os.Clearenv() // Prevent proxy settings from redirecting local test traffic.
-	srv := httptest.NewServer(http.NotFoundHandler())
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		http.NotFound(w, r)
+	}))
+	srv.Config.SetKeepAlivesEnabled(false) // idle connections would block synctest from advancing time
 	defer srv.Close()
-	if _, err := New(t.Context(), srv.URL); err == nil {
-		t.Fatal("want error when the discovery endpoint returns 404")
+	synctest.Test(t, func(t *testing.T) {
+		if _, err := New(t.Context(), srv.URL); err == nil {
+			t.Fatal("want error when the discovery endpoint returns 404")
+		}
+	})
+	if calls != retry.DefaultBackoff.MaxAttempts {
+		t.Fatalf("got %d discovery calls, want %d", calls, retry.DefaultBackoff.MaxAttempts)
 	}
 }
 

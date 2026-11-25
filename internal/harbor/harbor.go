@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/RiskIdent/harbor-roboteer/internal/retry"
 	"github.com/go-openapi/runtime"
 	httptransport "github.com/go-openapi/runtime/client"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -26,12 +27,14 @@ var (
 )
 
 const (
-	createAttempts = 5
-	maxNameLen     = 128
-	managedByName  = "harbor-roboteer"
+	maxNameLen    = 128
+	managedByName = "harbor-roboteer"
 )
 
-var invalidNameChars = regexp.MustCompile(`[^a-z0-9]+`)
+var (
+	invalidNameChars  = regexp.MustCompile(`[^a-z0-9]+`)
+	nameConflictRetry = retry.Backoff{MaxAttempts: 5} // intentionally no delays
+)
 
 type Client struct {
 	api *v2client.HarborAPI
@@ -84,14 +87,22 @@ func normalizeRobotName(base, suffix string) string {
 // CreateRobot creates a project-level robot account with pull and push access to project.
 func (c *Client) CreateRobot(ctx context.Context, robot RobotCreate) (Robot, error) {
 	now := time.Now()
-	for range createAttempts {
+	return retry.DefaultBackoff.DoValues(ctx, func(ctx context.Context) (Robot, error) {
+		created, err := c.createRobotWithUniqueName(ctx, robot, now)
+		return created, retryTransient(err)
+	})
+}
+
+// createRobotWithUniqueName tries new random name suffixes until one isn't taken.
+func (c *Client) createRobotWithUniqueName(ctx context.Context, robot RobotCreate, now time.Time) (Robot, error) {
+	return nameConflictRetry.DoValues(ctx, func(ctx context.Context) (Robot, error) {
 		request := newRobotCreateRequest(robot, now, strings.ToLower(rand.Text()[:8]))
 		created, err := c.createRobot(ctx, request)
-		if !errors.Is(err, ErrRobotExists) {
-			return created, err
+		if errors.Is(err, ErrRobotExists) {
+			return created, retry.Again(err)
 		}
-	}
-	return Robot{}, ErrRobotExists
+		return created, err
+	})
 }
 
 func newRobotCreateRequest(robot RobotCreate, now time.Time, suffix string) *models.RobotCreate {
@@ -137,13 +148,15 @@ func (c *Client) createRobot(ctx context.Context, request *models.RobotCreate) (
 
 // DeleteRobot deletes the robot account with the given ID, or returns ErrRobotNotFound.
 func (c *Client) DeleteRobot(ctx context.Context, id int64) error {
-	if _, err := c.api.Robot.DeleteRobot(ctx, robot.NewDeleteRobotParams().WithRobotID(id)); err != nil {
-		if _, ok := errors.AsType[*robot.DeleteRobotNotFound](err); ok {
-			return ErrRobotNotFound
+	return retry.DefaultBackoff.Do(ctx, func(ctx context.Context) error {
+		if _, err := c.api.Robot.DeleteRobot(ctx, robot.NewDeleteRobotParams().WithRobotID(id)); err != nil {
+			if _, ok := errors.AsType[*robot.DeleteRobotNotFound](err); ok {
+				return ErrRobotNotFound
+			}
+			return retryTransient(fmt.Errorf("delete robot %d: %w", id, err))
 		}
-		return fmt.Errorf("delete robot %d: %w", id, err)
-	}
-	return nil
+		return nil
+	})
 }
 
 // Ping pings the harbor api to check if it is reachable.
@@ -158,7 +171,10 @@ func (c *Client) Ping(ctx context.Context) error {
 func (c *Client) CleanupRobots(ctx context.Context, now time.Time) (int, error) {
 	var expired []Robot
 	for page := int64(1); ; page++ {
-		resp, err := c.api.Robot.ListRobot(ctx, robot.NewListRobotParams().WithPage(&page))
+		resp, err := retry.DefaultBackoff.DoValues(ctx, func(ctx context.Context) (*robot.ListRobotOK, error) {
+			resp, err := c.api.Robot.ListRobot(ctx, robot.NewListRobotParams().WithPage(&page))
+			return resp, retryTransient(err)
+		})
 		if err != nil {
 			return 0, fmt.Errorf("list robots page %d: %w", page, err)
 		}
@@ -188,4 +204,34 @@ func (c *Client) CleanupRobots(ctx context.Context, now time.Time) (int, error) 
 		deleted++
 	}
 	return deleted, errors.Join(errs...)
+}
+
+// retryTransient marks errors worth trying again for retry.Backoff.
+func retryTransient(err error) error {
+	if isTransient(err) {
+		return retry.Again(err)
+	}
+	return err
+}
+
+// isTransient reports whether err is a network failure or a Harbor response
+// that may succeed when tried again.
+func isTransient(err error) bool {
+	if _, ok := errors.AsType[*url.Error](err); ok {
+		return true
+	}
+	var status runtime.ClientResponseStatus
+	if !errors.As(err, &status) {
+		return false
+	}
+	switch {
+	case status.IsServerError(), // any 5xx code
+		status.IsCode(http.StatusNotFound), // reverse proxy that hasn't found a healthy Harbor backend yet
+		status.IsCode(http.StatusRequestTimeout),
+		status.IsCode(http.StatusTooManyRequests),
+		status.IsCode(499): // Traefik/nginx "client closed request", e.g. on upstream connection timeout
+		return true
+	default:
+		return false
+	}
 }
