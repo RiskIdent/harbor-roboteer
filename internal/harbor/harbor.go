@@ -223,7 +223,7 @@ func joinErrors(payload *models.Errors) error {
 		}
 	}
 	if len(errs) == 0 {
-		return errors.New("Harbor returned an error without details")
+		return errors.New("Harbor returned an error without details") //nolint:staticcheck // "Harbor" is capitalized because it's a name
 	}
 	return errors.Join(errs...)
 }
