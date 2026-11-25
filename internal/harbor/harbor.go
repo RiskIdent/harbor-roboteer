@@ -117,11 +117,7 @@ func daysUntil(now, date time.Time) int64 {
 func (c *Client) createRobot(ctx context.Context, request *models.RobotCreate) (Robot, error) {
 	resp, err := c.api.Robot.CreateRobot(ctx, robot.NewCreateRobotParams().WithRobot(request))
 	if err != nil {
-		var apiErr *runtime.APIError
-		if errors.As(err, &apiErr) && apiErr.Code == http.StatusConflict {
-			return Robot{}, ErrRobotExists
-		}
-		return Robot{}, fmt.Errorf("create robot: %w", err)
+		return Robot{}, prettyRobotCreateError(err)
 	}
 	return NewRobotFromResponse(&models.Robot{
 		ID:           resp.Payload.ID,
@@ -135,15 +131,44 @@ func (c *Client) createRobot(ctx context.Context, request *models.RobotCreate) (
 	}), nil
 }
 
+func prettyRobotCreateError(err error) error {
+	if typed, ok := errors.AsType[*runtime.APIError](err); ok && typed.Code == http.StatusConflict {
+		return ErrRobotExists
+	} else if typed, ok := errors.AsType[*robot.CreateRobotBadRequest](err); ok {
+		return fmt.Errorf("create robot: %w", joinErrors(typed.Payload))
+	} else if typed, ok := errors.AsType[*robot.CreateRobotUnauthorized](err); ok {
+		return fmt.Errorf("create robot: %w", joinErrors(typed.Payload))
+	} else if typed, ok := errors.AsType[*robot.CreateRobotForbidden](err); ok {
+		return fmt.Errorf("create robot: %w", joinErrors(typed.Payload))
+	} else if typed, ok := errors.AsType[*robot.CreateRobotNotFound](err); ok {
+		return fmt.Errorf("create robot: %w", joinErrors(typed.Payload))
+	} else if typed, ok := errors.AsType[*robot.CreateRobotInternalServerError](err); ok {
+		return fmt.Errorf("create robot: %w", joinErrors(typed.Payload))
+	}
+	return err
+}
+
 // DeleteRobot deletes the robot account with the given ID, or returns ErrRobotNotFound.
 func (c *Client) DeleteRobot(ctx context.Context, id int64) error {
 	if _, err := c.api.Robot.DeleteRobot(ctx, robot.NewDeleteRobotParams().WithRobotID(id)); err != nil {
-		if _, ok := errors.AsType[*robot.DeleteRobotNotFound](err); ok {
-			return ErrRobotNotFound
-		}
-		return fmt.Errorf("delete robot %d: %w", id, err)
+		return prettyRobotDeleteError(err)
 	}
 	return nil
+}
+
+func prettyRobotDeleteError(err error) error {
+	if typed, ok := errors.AsType[*robot.DeleteRobotBadRequest](err); ok {
+		return fmt.Errorf("delete robot: %w", joinErrors(typed.Payload))
+	} else if typed, ok := errors.AsType[*robot.DeleteRobotUnauthorized](err); ok {
+		return fmt.Errorf("delete robot: %w", joinErrors(typed.Payload))
+	} else if typed, ok := errors.AsType[*robot.DeleteRobotForbidden](err); ok {
+		return fmt.Errorf("delete robot: %w", joinErrors(typed.Payload))
+	} else if _, ok := errors.AsType[*robot.DeleteRobotNotFound](err); ok {
+		return ErrRobotNotFound
+	} else if typed, ok := errors.AsType[*robot.DeleteRobotInternalServerError](err); ok {
+		return fmt.Errorf("delete robot: %w", joinErrors(typed.Payload))
+	}
+	return err
 }
 
 // Ping pings the harbor api to check if it is reachable.
@@ -188,4 +213,17 @@ func (c *Client) CleanupRobots(ctx context.Context, now time.Time) (int, error) 
 		deleted++
 	}
 	return deleted, errors.Join(errs...)
+}
+
+func joinErrors(payload *models.Errors) error {
+	var errs []error
+	for _, err := range payload.Errors {
+		if err != nil {
+			errs = append(errs, errors.New(err.Message))
+		}
+	}
+	if len(errs) == 0 {
+		return errors.New("Harbor returned an error without details") //nolint:staticcheck // "Harbor" is capitalized because it's a name
+	}
+	return errors.Join(errs...)
 }
