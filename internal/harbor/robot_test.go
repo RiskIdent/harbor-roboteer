@@ -279,7 +279,7 @@ func TestCleanupRobots(t *testing.T) {
 			case "9":
 				if !flakyFailed {
 					flakyFailed = true
-					w.WriteHeader(http.StatusServiceUnavailable)
+					w.WriteHeader(http.StatusNotFound) // like a reverse proxy that can't reach Harbor
 					return
 				}
 				deleted = append(deleted, id)

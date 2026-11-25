@@ -147,16 +147,21 @@ func (c *Client) createRobot(ctx context.Context, request *models.RobotCreate) (
 }
 
 // DeleteRobot deletes the robot account with the given ID, or returns ErrRobotNotFound.
+//
+// A 404 is retried before being reported as ErrRobotNotFound,
+// as it might come from a reverse proxy that can't reach Harbor.
 func (c *Client) DeleteRobot(ctx context.Context, id int64) error {
-	return retry.DefaultBackoff.Do(ctx, func(ctx context.Context) error {
-		if _, err := c.api.Robot.DeleteRobot(ctx, robot.NewDeleteRobotParams().WithRobotID(id)); err != nil {
-			if _, ok := errors.AsType[*robot.DeleteRobotNotFound](err); ok {
-				return ErrRobotNotFound
-			}
-			return retryTransient(fmt.Errorf("delete robot %d: %w", id, err))
-		}
-		return nil
+	err := retry.DefaultBackoff.Do(ctx, func(ctx context.Context) error {
+		_, err := c.api.Robot.DeleteRobot(ctx, robot.NewDeleteRobotParams().WithRobotID(id))
+		return retryTransient(err)
 	})
+	if _, ok := errors.AsType[*robot.DeleteRobotNotFound](err); ok {
+		return ErrRobotNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("delete robot %d: %w", id, err)
+	}
+	return nil
 }
 
 // Ping pings the harbor api to check if it is reachable.

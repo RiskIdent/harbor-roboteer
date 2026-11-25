@@ -3,8 +3,10 @@ package jwks
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -64,7 +66,11 @@ func fetchJWKSURL(ctx context.Context, issuer, u string) (string, error) {
 		JWKSURI string `json:"jwks_uri"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&doc); err != nil {
-		return "", fmt.Errorf("discover %s: decode: %w", u, err)
+		err = fmt.Errorf("discover %s: decode: %w", u, err)
+		if isIncompleteBody(err) {
+			return "", retry.Again(err)
+		}
+		return "", err
 	}
 	if doc.Issuer != issuer {
 		return "", fmt.Errorf("discover %s: issuer mismatch: configured %q, provider says %q", u, issuer, doc.Issuer)
@@ -73,6 +79,12 @@ func fetchJWKSURL(ctx context.Context, issuer, u string) (string, error) {
 		return "", fmt.Errorf("discover %s: no jwks_uri", u)
 	}
 	return doc.JWKSURI, nil
+}
+
+// isIncompleteBody reports whether reading a response body failed because the connection broke.
+func isIncompleteBody(err error) bool {
+	_, isNetErr := errors.AsType[net.Error](err)
+	return isNetErr || errors.Is(err, io.ErrUnexpectedEOF)
 }
 
 // isTransientStatus reports whether a response with this status code may succeed when tried again.
