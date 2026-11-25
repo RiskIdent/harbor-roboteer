@@ -211,6 +211,7 @@ url = "https://get.helm.sh/helm-v4.3.1-windows-amd64.tar.gz"
 version = "2.7.0"
 backend = "packslip:github.com/jdx/hk"
 specifiers = ["2.7.0"]
+unsupported_platforms = ["macos-x64"]
 
 [tools.hk."platforms.linux-arm64"]
 checksum = "sha256:a64c8cead6f9a47e6bf4d639122ca3eeba60480763076330ba230a8cb7821520"
