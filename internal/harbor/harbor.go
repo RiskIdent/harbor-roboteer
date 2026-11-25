@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-openapi/runtime"
 	httptransport "github.com/go-openapi/runtime/client"
+	"github.com/go-openapi/strfmt"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	v2client "github.com/goharbor/go-client/pkg/sdk/v2.0/client"
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/client/ping"
@@ -49,14 +50,19 @@ func New(harborURL *url.URL, username, password string) (*Client, error) {
 	if harborURL.Scheme == "" || harborURL.Host == "" {
 		return nil, fmt.Errorf("harbor url %q must include scheme and host, e.g. https://harbor.example.com", harborURL)
 	}
-	harborURL.Path = v2client.DefaultBasePath
+	return &Client{api: newHarborAPI(harborURL, username, password)}, nil
+}
 
-	return &Client{
-		api: v2client.New(v2client.Config{
-			URL:      harborURL,
-			AuthInfo: httptransport.BasicAuth(username, password),
-		}),
-	}, nil
+// newHarborAPI only populates the services we use, as [v2client.New] can't
+// take the OpenTelemetry-instrumented transport.
+func newHarborAPI(harborURL *url.URL, username, password string) *v2client.HarborAPI {
+	transport := httptransport.New(harborURL.Host, v2client.DefaultBasePath, []string{harborURL.Scheme}).WithOpenTelemetry()
+	auth := httptransport.BasicAuth(username, password)
+	return &v2client.HarborAPI{
+		Transport: transport,
+		Ping:      ping.New(transport, strfmt.Default, auth),
+		Robot:     robot.New(transport, strfmt.Default, auth),
+	}
 }
 
 // GetRobotByID returns the robot account with the given ID, or ErrRobotNotFound.
@@ -117,11 +123,7 @@ func daysUntil(now, date time.Time) int64 {
 func (c *Client) createRobot(ctx context.Context, request *models.RobotCreate) (Robot, error) {
 	resp, err := c.api.Robot.CreateRobot(ctx, robot.NewCreateRobotParams().WithRobot(request))
 	if err != nil {
-		var apiErr *runtime.APIError
-		if errors.As(err, &apiErr) && apiErr.Code == http.StatusConflict {
-			return Robot{}, ErrRobotExists
-		}
-		return Robot{}, fmt.Errorf("create robot: %w", err)
+		return Robot{}, prettyRobotCreateError(err)
 	}
 	return NewRobotFromResponse(&models.Robot{
 		ID:           resp.Payload.ID,
@@ -135,15 +137,44 @@ func (c *Client) createRobot(ctx context.Context, request *models.RobotCreate) (
 	}), nil
 }
 
+func prettyRobotCreateError(err error) error {
+	if typed, ok := errors.AsType[*runtime.APIError](err); ok && typed.Code == http.StatusConflict {
+		return ErrRobotExists
+	} else if typed, ok := errors.AsType[*robot.CreateRobotBadRequest](err); ok {
+		return fmt.Errorf("create robot: %w", joinErrors(typed.Payload))
+	} else if typed, ok := errors.AsType[*robot.CreateRobotUnauthorized](err); ok {
+		return fmt.Errorf("create robot: %w", joinErrors(typed.Payload))
+	} else if typed, ok := errors.AsType[*robot.CreateRobotForbidden](err); ok {
+		return fmt.Errorf("create robot: %w", joinErrors(typed.Payload))
+	} else if typed, ok := errors.AsType[*robot.CreateRobotNotFound](err); ok {
+		return fmt.Errorf("create robot: %w", joinErrors(typed.Payload))
+	} else if typed, ok := errors.AsType[*robot.CreateRobotInternalServerError](err); ok {
+		return fmt.Errorf("create robot: %w", joinErrors(typed.Payload))
+	}
+	return err
+}
+
 // DeleteRobot deletes the robot account with the given ID, or returns ErrRobotNotFound.
 func (c *Client) DeleteRobot(ctx context.Context, id int64) error {
 	if _, err := c.api.Robot.DeleteRobot(ctx, robot.NewDeleteRobotParams().WithRobotID(id)); err != nil {
-		if _, ok := errors.AsType[*robot.DeleteRobotNotFound](err); ok {
-			return ErrRobotNotFound
-		}
-		return fmt.Errorf("delete robot %d: %w", id, err)
+		return prettyRobotDeleteError(err)
 	}
 	return nil
+}
+
+func prettyRobotDeleteError(err error) error {
+	if typed, ok := errors.AsType[*robot.DeleteRobotBadRequest](err); ok {
+		return fmt.Errorf("delete robot: %w", joinErrors(typed.Payload))
+	} else if typed, ok := errors.AsType[*robot.DeleteRobotUnauthorized](err); ok {
+		return fmt.Errorf("delete robot: %w", joinErrors(typed.Payload))
+	} else if typed, ok := errors.AsType[*robot.DeleteRobotForbidden](err); ok {
+		return fmt.Errorf("delete robot: %w", joinErrors(typed.Payload))
+	} else if _, ok := errors.AsType[*robot.DeleteRobotNotFound](err); ok {
+		return ErrRobotNotFound
+	} else if typed, ok := errors.AsType[*robot.DeleteRobotInternalServerError](err); ok {
+		return fmt.Errorf("delete robot: %w", joinErrors(typed.Payload))
+	}
+	return err
 }
 
 // Ping pings the harbor api to check if it is reachable.
@@ -188,4 +219,17 @@ func (c *Client) CleanupRobots(ctx context.Context, now time.Time) (int, error) 
 		deleted++
 	}
 	return deleted, errors.Join(errs...)
+}
+
+func joinErrors(payload *models.Errors) error {
+	var errs []error
+	for _, err := range payload.Errors {
+		if err != nil {
+			errs = append(errs, errors.New(err.Message))
+		}
+	}
+	if len(errs) == 0 {
+		return errors.New("Harbor returned an error without details") //nolint:staticcheck // "Harbor" is capitalized because it's a name
+	}
+	return errors.Join(errs...)
 }

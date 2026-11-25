@@ -80,3 +80,20 @@ app.kubernetes.io/name: {{ include "harbor-roboteer.name" . }}-cleanup
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/component: cleanup
 {{- end }}
+
+{{/*
+Container env, shared by the server and the cleanup CronJob.
+*/}}
+{{- define "harbor-roboteer.env" -}}
+{{- if and .Values.tracing.enabled (eq .Values.tracing.exporter "otlp") }}
+- name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+  value: "{{ .Values.tracing.otlp.endpoint }}"
+- name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+  value: "{{ .Values.tracing.otlp.protocol }}"
+- name: OTEL_EXPORTER_OTLP_TRACES_COMPRESSION
+  value: "{{ .Values.tracing.otlp.compression | default "none" }}"
+{{- end }}
+{{- with .Values.env }}
+{{ toYaml . }}
+{{- end }}
+{{- end }}

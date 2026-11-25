@@ -68,20 +68,9 @@ spec:
             {{- with .Values.args }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- $otlp := and .Values.tracing.enabled (eq .Values.tracing.exporter "otlp") }}
-          {{- if or $otlp .Values.env }}
+          {{- with include "harbor-roboteer.env" . | trim }}
           env:
-            {{- if $otlp }}
-            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
-              value: "{{ .Values.tracing.otlp.endpoint }}"
-            - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
-              value: "{{ .Values.tracing.otlp.protocol }}"
-            - name: OTEL_EXPORTER_OTLP_TRACES_COMPRESSION
-              value: "{{ .Values.tracing.otlp.compression | default "none" }}"
-            {{- end }}
-            {{- with .Values.env }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
+            {{- . | nindent 12 }}
           {{- end }}
           {{- with .Values.envFrom }}
           envFrom:
