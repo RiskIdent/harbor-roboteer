@@ -222,5 +222,8 @@ func joinErrors(payload *models.Errors) error {
 			errs = append(errs, errors.New(err.Message))
 		}
 	}
+	if len(errs) == 0 {
+		return errors.New("Harbor returned an error without details")
+	}
 	return errors.Join(errs...)
 }
