@@ -11,61 +11,19 @@ helm install harbor-roboteer oci://ghcr.io/riskident/charts/harbor-roboteer --ve
 
 ## Values
 
+### Deployment
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` | Affinity rules for pod assignment. |
-| args | list | `[]` | Extra command-line arguments. |
-| autoscaling.enabled | bool | `false` | Enable horizontal pod autoscaling. |
-| autoscaling.maxReplicas | int | `100` | Maximum number of replicas. |
-| autoscaling.minReplicas | int | `1` | Minimum number of replicas. |
-| autoscaling.targetCPUUtilizationPercentage | int | `80` | Target average CPU utilization percentage. |
-| cleanup.cronjobAnnotations | object | `{}` | Annotations to add to the CronJob. |
-| cleanup.cronjobLabels | object | `{}` | Labels to add to the CronJob. |
-| cleanup.enabled | bool | `true` | Enable the cleanup CronJob. |
-| cleanup.jobAnnotations | object | `{}` | Annotations to add to the Job. |
-| cleanup.jobLabels | object | `{}` | Labels to add to the Job. |
-| cleanup.resources | object | `{}` | Resource requests and limits for the cleanup container. |
-| cleanup.schedule | string | `"0 * * * *"` | Cron schedule. See [Cron schedule syntax](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-syntax). |
 | commonLabels | object | `{}` | Labels added to all resources created by this chart. |
-| config | string | `"function(claims) []\n"` | Jsonnet config mapping token claims to Harbor permissions, see roboteer.jsonnet in the repo. Stored in a ConfigMap and passed as --config. Set it from a file with:   helm install ... --set-file config=roboteer.jsonnet The default rejects every token. |
 | deploymentAnnotations | object | `{}` | Annotations to add to the Deployment. |
 | deploymentLabels | object | `{}` | Labels to add to the Deployment. |
-| env | list | `[]` | Environment variables for the server and cleanup containers. |
-| envFrom | list | `[]` | Load all keys of a Secret or ConfigMap as environment variables. |
-| existingConfigMap | string | `""` | Name of an existing ConfigMap to use instead of "config". It must have the key "roboteer.jsonnet". Pods are not restarted when it changes. |
-| flags.harbor-url | string | `""` | Harbor URL. |
-| flags.harbor-username | string | `"admin"` | Harbor username. |
-| flags.log-format | string | `"json"` | Log format of the app. |
-| flags.log-level | string | `"info"` | Log level of the app. |
-| flags.oidc-audience | string | `"harbor-roboteer"` | OIDC audience. |
-| flags.oidc-issuer | string | `""` | OIDC issuer URL. |
-| flags.robot-ttl | string | `"1h"` | Robot account time to live. |
-| fullnameOverride | string | `""` | Override the full release name. |
-| httpRoute.annotations | object | `{}` | HTTPRoute annotations. |
-| httpRoute.enabled | bool | `false` | Enable HTTPRoute. |
-| httpRoute.hostnames | list | `["harbor-roboteer.local"]` | Hostnames matched by the HTTP request. |
-| httpRoute.parentRefs | list | `[{"name":"gateway","sectionName":"http"}]` | Gateways this Route is attached to. |
-| httpRoute.rules | list | `[{"matches":[{"path":{"type":"PathPrefix","value":"/headers"}}]}]` | Rules and filters applied to the HTTPRoute. |
 | image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
 | image.repository | string | `"ghcr.io/riskident/harbor-roboteer"` | Image repository. |
 | image.tag | string | `""` | Image tag. Defaults to the chart appVersion. |
 | imagePullSecrets | list | `[]` | Secrets for pulling an image from a private repository. |
-| ingress.annotations | object | `{}` | Annotations to add to the Ingress. |
-| ingress.className | string | `""` | Ingress class name. |
-| ingress.enabled | bool | `false` | Enable Ingress. |
-| ingress.hosts | list | `[{"host":"harbor-roboteer.local","paths":[{"path":"/","pathType":"ImplementationSpecific"}]}]` | Ingress host and path rules. |
-| ingress.tls | list | `[]` | Ingress TLS configuration. |
 | livenessProbe | object | `{"httpGet":{"path":"/api/roboteer/v1/health","port":"http"}}` | Liveness probe settings. |
-| metrics | object | `{"enabled":false,"port":9090,"serviceMonitor":{"enabled":false,"interval":"","labels":{}}}` | Prometheus metrics settings. Metrics are served at /metrics. |
-| metrics.enabled | bool | `false` | Enable the metrics listener and expose it through a separate ClusterIP Service. |
-| metrics.serviceMonitor.enabled | bool | `false` | Create a Prometheus Operator ServiceMonitor. Requires its CRDs. |
-| metrics.serviceMonitor.interval | string | `""` | Scrape interval. Empty uses the Prometheus default. |
-| metrics.serviceMonitor.labels | object | `{}` | Extra labels, e.g. to match the Prometheus serviceMonitorSelector. |
-| nameOverride | string | `""` | Override the chart name. |
-| networkPolicy.egress | list | `[]` | Egress rules for the server and cleanup Pods. Empty leaves egress unrestricted. |
-| networkPolicy.enabled | bool | `true` | Enable NetworkPolicy. |
-| networkPolicy.ingressFrom | list | `[]` | Peers allowed to reach the HTTP port. Empty allows any source. |
-| networkPolicy.metricsFrom | list | `[]` | Peers allowed to reach the metrics port. Empty allows any source. |
 | nodeSelector | object | `{}` | Node labels for pod assignment. |
 | podAnnotations | object | `{}` | Annotations to add to Pods. |
 | podLabels | object | `{}` | Labels to add to Pods. |
@@ -81,10 +39,90 @@ helm install harbor-roboteer oci://ghcr.io/riskident/charts/harbor-roboteer --ve
 | serviceAccount.create | bool | `true` | Create a service account. |
 | serviceAccount.name | string | `""` | Service account name. When empty and create is true, the chart generates a name. |
 | tolerations | list | `[]` | Tolerations for pod assignment. |
+| volumeMounts | list | `[]` | Additional volume mounts on the output Deployment. |
+| volumes | list | `[]` | Additional volumes on the output Deployment. |
+
+### Config
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| args | list | `[]` | Extra command-line arguments. |
+| config | string | `"function(claims) []\n"` | Jsonnet config mapping token claims to Harbor permissions, see roboteer.jsonnet in the repo. Stored in a ConfigMap and passed as --config. Set it from a file with:   helm install ... --set-file config=roboteer.jsonnet The default rejects every token. |
+| env | list | `[]` | Environment variables for the server and cleanup containers. |
+| envFrom | list | `[]` | Load all keys of a Secret or ConfigMap as environment variables. |
+| existingConfigMap | string | `""` | Name of an existing ConfigMap to use instead of "config". It must have the key "roboteer.jsonnet". Pods are not restarted when it changes. |
+| flags.harbor-url | string | `""` | Harbor URL. |
+| flags.harbor-username | string | `"admin"` | Harbor username. |
+| flags.log-format | string | `"json"` | Log format of the app. |
+| flags.log-level | string | `"info"` | Log level of the app. |
+| flags.oidc-audience | string | `"harbor-roboteer"` | OIDC audience. |
+| flags.oidc-issuer | string | `""` | OIDC issuer URL. |
+| flags.robot-ttl | string | `"1h"` | Robot account time to live. |
+
+### Horizontal Pod Autoscaler
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| autoscaling.enabled | bool | `false` | Enable horizontal pod autoscaling. |
+| autoscaling.maxReplicas | int | `100` | Maximum number of replicas. |
+| autoscaling.minReplicas | int | `1` | Minimum number of replicas. |
+| autoscaling.targetCPUUtilizationPercentage | int | `80` | Target average CPU utilization percentage. |
+| autoscaling.targetMemoryUtilizationPercentage | string | `nil` | Target average memory utilization percentage. |
+
+### Cleanup CronJob
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| cleanup.cronjobAnnotations | object | `{}` | Annotations to add to the CronJob. |
+| cleanup.cronjobLabels | object | `{}` | Labels to add to the CronJob. |
+| cleanup.enabled | bool | `true` | Enable the cleanup CronJob. |
+| cleanup.jobAnnotations | object | `{}` | Annotations to add to the Job. |
+| cleanup.jobLabels | object | `{}` | Labels to add to the Job. |
+| cleanup.resources | object | `{}` | Resource requests and limits for the cleanup container. |
+| cleanup.schedule | string | `"0 * * * *"` | Cron schedule. See [Cron schedule syntax](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-syntax). |
+
+### Ingress
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| httpRoute.annotations | object | `{}` | HTTPRoute annotations. |
+| httpRoute.enabled | bool | `false` | Enable HTTPRoute. |
+| httpRoute.hostnames | list | `["harbor-roboteer.local"]` | Hostnames matched by the HTTP request. |
+| httpRoute.parentRefs | list | `[{"name":"gateway","sectionName":"http"}]` | Gateways this Route is attached to. |
+| httpRoute.rules | list | `[{"matches":[{"path":{"type":"PathPrefix","value":"/headers"}}]}]` | Rules and filters applied to the HTTPRoute. |
+| ingress.annotations | object | `{}` | Annotations to add to the Ingress. |
+| ingress.className | string | `""` | Ingress class name. |
+| ingress.enabled | bool | `false` | Enable Ingress. |
+| ingress.hosts | list | `[{"host":"harbor-roboteer.local","paths":[{"path":"/","pathType":"ImplementationSpecific"}]}]` | Ingress host and path rules. |
+| ingress.tls | list | `[]` | Ingress TLS configuration. |
+
+### Observability
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| metrics.enabled | bool | `false` | Enable the metrics listener and expose it through a separate ClusterIP Service. |
+| metrics.port | int | `9090` | Metrics server port, passed as `--metrics-addr` flag. |
+| metrics.serviceMonitor.enabled | bool | `false` | Create a Prometheus Operator ServiceMonitor. Requires its CRDs. |
+| metrics.serviceMonitor.interval | string | `""` | Scrape interval. Empty uses the Prometheus default. |
+| metrics.serviceMonitor.labels | object | `{}` | Extra labels, e.g. to match the Prometheus serviceMonitorSelector. |
 | tracing.enabled | bool | `false` | Enables tracing in config and addition of OTLP environment variables. |
 | tracing.exporter | string | `"otlp"` | Tracing exporter. |
 | tracing.otlp.compression | string | `"none"` | OTLP request compression. |
 | tracing.otlp.endpoint | string | `"http://otel-collector-collector.opentelemetry.svc.cluster.local:4317"` | OTLP exporter endpoint. |
 | tracing.otlp.protocol | string | `"grpc"` | OTLP protocol. |
-| volumeMounts | list | `[]` | Additional volume mounts on the output Deployment. |
-| volumes | list | `[]` | Additional volumes on the output Deployment. |
+
+### NetworkPolicy
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| networkPolicy.egress | list | `[]` | Egress rules for the server and cleanup Pods. Empty leaves egress unrestricted. |
+| networkPolicy.enabled | bool | `true` | Enable NetworkPolicy. |
+| networkPolicy.ingressFrom | list | `[]` | Peers allowed to reach the HTTP port. Empty allows any source. |
+| networkPolicy.metricsFrom | list | `[]` | Peers allowed to reach the metrics port. Empty allows any source. |
+
+### Other Values
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| fullnameOverride | string | `""` | Override the full release name. |
+| nameOverride | string | `""` | Override the chart name. |

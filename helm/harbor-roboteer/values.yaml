@@ -1,48 +1,64 @@
 # -- Number of harbor-roboteer replicas.
+# @section -- Deployment
 replicaCount: 1 # @schema type: integer; minimum: 0
 
 # @schema description: Container image settings.
 image: # @schema skipProperties; $ref: ./schema-utils.yaml#/definitions/image
   # -- Image repository.
+  # @section -- Deployment
   repository: ghcr.io/riskident/harbor-roboteer
   # -- Image pull policy.
+  # @section -- Deployment
   pullPolicy: IfNotPresent
   # -- Image tag. Defaults to the chart appVersion.
+  # @section -- Deployment
   tag: ""
 
 # -- Secrets for pulling an image from a private repository.
+# @section -- Deployment
 imagePullSecrets: [] # @schema $ref: ./schema-utils.yaml#/definitions/imagePullSecrets
+
 # -- Override the chart name.
 nameOverride: ""
 # -- Override the full release name.
 fullnameOverride: ""
 
 # -- Labels added to all resources created by this chart.
+# @section -- Deployment
 commonLabels: {} # @schema additionalProperties: {type: string}
   # team: platform
 
 # @schema description: Service account settings.
 serviceAccount:
   # -- Create a service account.
+  # @section -- Deployment
   create: true
   # -- Automount the service account token.
+  # @section -- Deployment
   automount: true
   # -- Annotations to add to the ServiceAccount.
+  # @section -- Deployment
   annotations: {} # @schema additionalProperties: {type: string}
   # -- Service account name. When empty and create is true, the chart generates a name.
+  # @section -- Deployment
   name: ""
 
 # -- Annotations to add to Pods.
+# @section -- Deployment
 podAnnotations: {} # @schema additionalProperties: {type: string}
 # -- Labels to add to Pods.
+# @section -- Deployment
 podLabels: {} # @schema additionalProperties: {type: string}
 
 # -- Annotations to add to the Deployment.
+# @section -- Deployment
 deploymentAnnotations: {} # @schema additionalProperties: {type: string}
 # -- Labels to add to the Deployment.
+# @section -- Deployment
 deploymentLabels: {} # @schema additionalProperties: {type: string}
 
 # -- Pod-level security settings. Defaults satisfy the "restricted" Pod Security Standard.
+# @section -- Deployment
 podSecurityContext: # @schema skipProperties; $ref: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.PodSecurityContext
   runAsNonRoot: true
   runAsUser: 65532
@@ -51,6 +67,7 @@ podSecurityContext: # @schema skipProperties; $ref: $k8s/_definitions.json#/defi
     type: RuntimeDefault
 
 # -- Container-level security settings. Defaults satisfy the "restricted" Pod Security Standard.
+# @section -- Deployment
 securityContext: # @schema skipProperties; $ref: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.SecurityContext
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
@@ -62,27 +79,34 @@ securityContext: # @schema skipProperties; $ref: $k8s/_definitions.json#/definit
 # @schema description: Kubernetes Service settings.
 service:
   # -- Kubernetes Service type.
+  # @section -- Deployment
   type: ClusterIP # @schema enum: [ClusterIP, NodePort, LoadBalancer, ExternalName]
   # -- Kubernetes Service port.
+  # @section -- Deployment
   port: 8080 # @schema type: integer; minimum: 1; maximum: 65535
 
 # @schema description: Ingress settings.
 ingress:
   # -- Enable Ingress.
+  # @section -- Ingress
   enabled: false
   # -- Ingress class name.
+  # @section -- Ingress
   className: ""
   # -- Annotations to add to the Ingress.
+  # @section -- Ingress
   annotations: {} # @schema additionalProperties: {type: string}
     # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
   # -- Ingress host and path rules.
+  # @section -- Ingress
   hosts:
     - host: harbor-roboteer.local
       paths:
         - path: /
           pathType: ImplementationSpecific
   # -- Ingress TLS configuration.
+  # @section -- Ingress
   tls: [] # @schema itemRef: $k8s/_definitions.json#/definitions/io.k8s.api.networking.v1.IngressTLS
     # - secretName: harbor-roboteer-tls
     #   hosts:
@@ -93,18 +117,23 @@ ingress:
 # (see the [Gateway API guide](https://gateway-api.sigs.k8s.io/guides/)).
 httpRoute:
   # -- Enable HTTPRoute.
+  # @section -- Ingress
   enabled: false
   # -- HTTPRoute annotations.
+  # @section -- Ingress
   annotations: {} # @schema additionalProperties: {type: string}
   # -- Gateways this Route is attached to.
+  # @section -- Ingress
   parentRefs: # @schema skipProperties; $ref: https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/gateway.networking.k8s.io/httproute_v1.json#/properties/spec/properties/parentRefs
     - name: gateway
       sectionName: http
       # namespace: default
   # -- Hostnames matched by the HTTP request.
+  # @section -- Ingress
   hostnames: # @schema skipProperties; $ref: https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/gateway.networking.k8s.io/httproute_v1.json#/properties/spec/properties/hostnames
     - harbor-roboteer.local
   # -- Rules and filters applied to the HTTPRoute.
+  # @section -- Ingress
   rules: # @schema skipProperties; $ref: https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/gateway.networking.k8s.io/httproute_v1.json#/properties/spec/properties/rules
     - matches:
         - path:
@@ -129,18 +158,22 @@ httpRoute:
 # @schema description: Restrict network traffic to the Pods. Requires a CNI that enforces NetworkPolicy.
 networkPolicy:
   # -- Enable NetworkPolicy.
+  # @section -- NetworkPolicy
   enabled: true
   # -- Peers allowed to reach the HTTP port. Empty allows any source.
+  # @section -- NetworkPolicy
   ingressFrom: [] # @schema itemRef: $k8s/_definitions.json#/definitions/io.k8s.api.networking.v1.NetworkPolicyPeer
     # - namespaceSelector:
     #     matchLabels:
     #       kubernetes.io/metadata.name: ingress-nginx
   # -- Peers allowed to reach the metrics port. Empty allows any source.
+  # @section -- NetworkPolicy
   metricsFrom: [] # @schema itemRef: $k8s/_definitions.json#/definitions/io.k8s.api.networking.v1.NetworkPolicyPeer
     # - namespaceSelector:
     #     matchLabels:
     #       kubernetes.io/metadata.name: monitoring
   # -- Egress rules for the server and cleanup Pods. Empty leaves egress unrestricted.
+  # @section -- NetworkPolicy
   egress: [] # @schema itemRef: $k8s/_definitions.json#/definitions/io.k8s.api.networking.v1.NetworkPolicyEgressRule
     # - ports:
     #     - port: 53
@@ -152,6 +185,7 @@ networkPolicy:
     #       protocol: TCP
 
 # -- Resource requests and limits for the server container.
+# @section -- Deployment
 resources: {} # @schema $ref: ./schema-utils.yaml#/definitions/resources
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little
@@ -165,11 +199,13 @@ resources: {} # @schema $ref: ./schema-utils.yaml#/definitions/resources
   #   memory: 128Mi
 
 # -- Liveness probe settings.
+# @section -- Deployment
 livenessProbe: # @schema skipProperties; $ref: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.Probe
   httpGet:
     path: /api/roboteer/v1/health
     port: http
 # -- Readiness probe settings.
+# @section -- Deployment
 readinessProbe: # @schema skipProperties; $ref: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.Probe
   httpGet:
     path: /api/roboteer/v1/health
@@ -178,27 +214,38 @@ readinessProbe: # @schema skipProperties; $ref: $k8s/_definitions.json#/definiti
 # @schema description: Horizontal Pod Autoscaler settings.
 autoscaling:
   # -- Enable horizontal pod autoscaling.
+  # @section -- Horizontal Pod Autoscaler
   enabled: false
   # -- Minimum number of replicas.
+  # @section -- Horizontal Pod Autoscaler
   minReplicas: 1 # @schema type: integer; minimum: 1
   # -- Maximum number of replicas.
+  # @section -- Horizontal Pod Autoscaler
   maxReplicas: 100 # @schema type: integer; minimum: 1
   # -- Target average CPU utilization percentage.
-  targetCPUUtilizationPercentage: 80 # @schema type: integer; minimum: 1
-  # targetMemoryUtilizationPercentage: 80
+  # @section -- Horizontal Pod Autoscaler
+  targetCPUUtilizationPercentage: 80 # @schema type: [integer, null]; minimum: 1
+  # -- Target average memory utilization percentage.
+  # @section -- Horizontal Pod Autoscaler
+  targetMemoryUtilizationPercentage: null # @schema type: [integer, null]; minimum: 1
 
-# -- Prometheus metrics settings. Metrics are served at /metrics.
+# @schema description: Prometheus metrics settings. Metrics are served at /metrics.
 metrics:
   # -- Enable the metrics listener and expose it through a separate ClusterIP Service.
+  # @section -- Observability
   enabled: false
-  # -- Metrics server port, passed as --metrics-addr.
+  # -- Metrics server port, passed as `--metrics-addr` flag.
+  # @section -- Observability
   port: 9090 # @schema type: integer; minimum: 1; maximum: 65535
   serviceMonitor:
     # -- Create a Prometheus Operator ServiceMonitor. Requires its CRDs.
+    # @section -- Observability
     enabled: false
     # -- Extra labels, e.g. to match the Prometheus serviceMonitorSelector.
+    # @section -- Observability
     labels: {} # @schema additionalProperties: {type: string}
     # -- Scrape interval. Empty uses the Prometheus default.
+    # @section -- Observability
     interval: ""
 
 # @schema description: Settings are propagated using the OpenTelemetry environment variable specification
@@ -206,69 +253,92 @@ metrics:
 # https://opentelemetry.io/docs/specs/otel/protocol/exporter/
 tracing:
   # -- Enables tracing in config and addition of OTLP environment variables.
+  # @section -- Observability
   enabled: false
   # -- Tracing exporter.
+  # @section -- Observability
   exporter: otlp # @schema enum: [otlp, zipkin, console, none]
   otlp:
     # -- OTLP exporter endpoint.
+    # @section -- Observability
     endpoint: http://otel-collector-collector.opentelemetry.svc.cluster.local:4317
     # -- OTLP protocol.
+    # @section -- Observability
     protocol: grpc # @schema enum: [grpc, http/protobuf, http/json]
     # -- OTLP request compression.
+    # @section -- Observability
     compression: none # @schema enum: [none, gzip]
 
 # @schema description: CronJob that runs "harbor-roboteer cleanup" to delete expired robot accounts created by harbor-roboteer.
 # It uses the same image, env, envFrom, logLevel, service account and scheduling settings as the server.
 cleanup:
   # -- Enable the cleanup CronJob.
+  # @section -- Cleanup CronJob
   enabled: true
   # -- Cron schedule. See [Cron schedule syntax](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-syntax).
+  # @section -- Cleanup CronJob
   schedule: "0 * * * *"
   # -- Resource requests and limits for the cleanup container.
+  # @section -- Cleanup CronJob
   resources: {} # @schema $ref: ./schema-utils.yaml#/definitions/resources
 
   # -- Annotations to add to the CronJob.
+  # @section -- Cleanup CronJob
   cronjobAnnotations: {} # @schema additionalProperties: {type: string}
   # -- Labels to add to the CronJob.
+  # @section -- Cleanup CronJob
   cronjobLabels: {} # @schema additionalProperties: {type: string}
   # -- Annotations to add to the Job.
+  # @section -- Cleanup CronJob
   jobAnnotations: {} # @schema additionalProperties: {type: string}
   # -- Labels to add to the Job.
+  # @section -- Cleanup CronJob
   jobLabels: {} # @schema additionalProperties: {type: string}
 
 # -- Jsonnet config mapping token claims to Harbor permissions, see roboteer.jsonnet in the repo.
 # Stored in a ConfigMap and passed as --config. Set it from a file with:
 #   helm install ... --set-file config=roboteer.jsonnet
 # The default rejects every token.
+# @section -- Config
 config: |
   function(claims) []
 
 # -- Name of an existing ConfigMap to use instead of "config". It must have the key "roboteer.jsonnet".
 # Pods are not restarted when it changes.
+# @section -- Config
 existingConfigMap: ""
 
 # @schema description: Map of flag name to value. An empty string or null will omit the flag.
 flags:
   # -- Log level of the app.
+  # @section -- Config
   log-level: info # @schema nullable; enum:[debug, info, warn, error, ""]; default: info
   # -- Log format of the app.
+  # @section -- Config
   log-format: json # @schema nullable; enum:[json, text, ""]; default: json
   # -- Harbor URL.
+  # @section -- Config
   harbor-url: "" # @schema nullable; examples:[https://harbor.example.com, http://harbor-core]
   # -- Harbor username.
+  # @section -- Config
   harbor-username: admin # @schema nullable
   # -- OIDC audience.
+  # @section -- Config
   oidc-audience: harbor-roboteer # @schema nullable; default: harbor-roboteer
   # -- OIDC issuer URL.
+  # @section -- Config
   oidc-issuer: "" # @schema nullable; examples:[https://token.actions.githubusercontent.com, https://github-enterprise.example.com/_services/token]
   # -- Robot account time to live.
+  # @section -- Config
   robot-ttl: 1h # @schema nullable; default: 1h
 
 # -- Extra command-line arguments.
+# @section -- Config
 args: [] # @schema item: string
   # - --oidc-audience=harbor-roboteer
 
 # -- Environment variables for the server and cleanup containers.
+# @section -- Config
 env: [] # @schema itemRef: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.EnvVar
   # - name: ROBOTEER_HARBOR_URL
   #   value: https://harbor.example.com
@@ -281,11 +351,13 @@ env: [] # @schema itemRef: $k8s/_definitions.json#/definitions/io.k8s.api.core.v
   #   value: http://otel-collector:4318
 
 # -- Load all keys of a Secret or ConfigMap as environment variables.
+# @section -- Config
 envFrom: [] # @schema itemRef: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.EnvFromSource
   # - secretRef:
   #     name: harbor-roboteer
 
 # -- Additional volumes on the output Deployment.
+# @section -- Deployment
 volumes: [] # @schema itemRef: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.Volume
   # - name: foo
   #   secret:
@@ -293,16 +365,20 @@ volumes: [] # @schema itemRef: $k8s/_definitions.json#/definitions/io.k8s.api.co
   #     optional: false
 
 # -- Additional volume mounts on the output Deployment.
+# @section -- Deployment
 volumeMounts: [] # @schema itemRef: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.VolumeMount
   # - name: foo
   #   mountPath: "/etc/foo"
   #   readOnly: true
 
 # -- Node labels for pod assignment.
+# @section -- Deployment
 nodeSelector: {} # @schema additionalProperties: {type: string}
 
 # -- Tolerations for pod assignment.
+# @section -- Deployment
 tolerations: [] # @schema itemRef: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.Toleration
 
 # -- Affinity rules for pod assignment.
+# @section -- Deployment
 affinity: {} # @schema $ref: $k8s/_definitions.json#/definitions/io.k8s.api.core.v1.Affinity
