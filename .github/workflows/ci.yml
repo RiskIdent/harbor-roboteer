@@ -59,7 +59,7 @@ jobs:
             echo "$file was changed"
           done
 
-      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           install_args: actionlint
@@ -106,7 +106,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
         with:
           install_args: gitlab:greut/eclint
           cache_key_prefix: mise-v1-eclint
@@ -179,7 +179,7 @@ jobs:
             echo "$file was changed"
           done
 
-      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           install_args: rumdl
@@ -210,7 +210,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
         with:
           install_args: typos
           cache_key_prefix: mise-v1-typos
@@ -255,7 +255,7 @@ jobs:
             echo "$file was changed"
           done
 
-      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           install_args: go
@@ -311,7 +311,7 @@ jobs:
             echo "$file was changed"
           done
 
-      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           install_args: go golangci-lint
@@ -374,7 +374,7 @@ jobs:
             echo "$file was changed"
           done
 
-      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           install: false
@@ -424,7 +424,7 @@ jobs:
             echo "$file was changed"
           done
 
-      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           install_args: hk
@@ -465,7 +465,7 @@ jobs:
             echo "$file was changed"
           done
 
-      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           install_args: helm
@@ -496,7 +496,7 @@ jobs:
             mise.lock
             .github/workflows/ci.yml
 
-      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           install_args: helm-docs
@@ -547,7 +547,7 @@ jobs:
 
       - name: Generate schema
         if: steps.changed-files.outputs.any_changed == 'true'
-        uses: losisin/helm-values-schema-json-action@9ed68d9d464a5e6f7f5fc1f3dc071828cf7d13a2 # v3.2.0
+        uses: losisin/helm-values-schema-json-action@3bbbe5960e765b4e45205e6b3af45daeaec7d7f5 # v3.2.1
         with:
           working-directory: helm/harbor-roboteer
           fail-on-diff: true
