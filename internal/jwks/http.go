@@ -61,7 +61,12 @@ func appendPEMCertificates(pool *x509.CertPool, path string, data []byte) error 
 		var block *pem.Block
 		block, data = pem.Decode(data)
 		if block == nil {
-			return fmt.Errorf("certificate bundle %q contains invalid PEM data", path)
+			for _, b := range data {
+				if b != ' ' && b != '\t' && b != '\r' && b != '\n' {
+					return fmt.Errorf("certificate bundle %q contains invalid PEM data", path)
+				}
+			}
+			break
 		}
 		if block.Type != "CERTIFICATE" {
 			return fmt.Errorf("certificate bundle %q contains PEM block %q, want CERTIFICATE", path, block.Type)
