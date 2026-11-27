@@ -117,7 +117,7 @@
       }
     },
     "config": {
-      "description": "Jsonnet config mapping token claims to Harbor permissions, see roboteer.jsonnet in the repo. The default rejects every token.",
+      "description": "Jsonnet config mapping token claims to Harbor permissions, see roboteer.jsonnet in the repo. Stored in a ConfigMap and passed as --config. Set it from a file with: helm install ... --set-file config=roboteer.jsonnet The default rejects every token.",
       "type": "string"
     },
     "deploymentAnnotations": {
