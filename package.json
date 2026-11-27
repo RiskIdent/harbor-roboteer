@@ -8,7 +8,7 @@
     "docs:lint": "redocly lint docs/openapi.yaml --lint-config=error"
   },
   "devDependencies": {
-    "@redocly/cli": "2.78.0",
+    "@redocly/cli": "2.82.0",
     "http-server": "14.1.1"
   }
 }
