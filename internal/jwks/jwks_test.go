@@ -132,7 +132,7 @@ func TestDiscoverRetriesTruncatedBody(t *testing.T) {
 	defer srv.Close()
 
 	synctest.Test(t, func(t *testing.T) {
-		got, err := discover(t.Context(), srv.URL)
+		got, err := discover(t.Context(), srv.URL, http.DefaultClient)
 		if err != nil {
 			t.Fatal(err)
 		}

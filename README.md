@@ -352,6 +352,15 @@ Configure `harbor-roboteer` to trust your OIDC issuer via the
 `--oidc-issuer` flag or `ROBOTEER_OIDC_ISSUER` environment variable.
 E.g: `--oidc-issuer=https://token.actions.githubusercontent.com`
 
+For issuers using certificates signed by a custom CA, pass one or more
+PEM-encoded certificate bundles with the repeatable `--oidc-ca-bundle` flag or
+`ROBOTEER_OIDC_CA_BUNDLE` environment variable. Paths may use glob patterns, such
+as `--oidc-ca-bundle=/etc/harbor-roboteer/certs/*.pem`.
+Our Docker image includes the public CA bundle at
+`/etc/ssl/certs/ca-certificates.crt`, but custom certificate bundles are added
+to the system certificate pool, so no need to add the system bundle if you
+need to use a mix of public and self-signed issuers.
+
 Request an OIDC token whose `aud` includes `harbor-roboteer` (the default).
 If you use a different audience, configure the server to match it via
 `--oidc-audience` or `ROBOTEER_OIDC_AUDIENCE`.

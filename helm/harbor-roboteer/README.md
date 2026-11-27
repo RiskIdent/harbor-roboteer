@@ -56,6 +56,7 @@ helm install harbor-roboteer oci://ghcr.io/riskident/charts/harbor-roboteer --ve
 | flags.log-format | string | `"json"` | Log format of the app. |
 | flags.log-level | string | `"info"` | Log level of the app. |
 | flags.oidc-audience | string | `"harbor-roboteer"` | OIDC audience. |
+| flags.oidc-ca-bundle | list | `[]` | PEM-encoded CA certificate bundle paths or globs. |
 | flags.oidc-issuer | string | `""` | OIDC issuer URL. |
 | flags.robot-ttl | string | `"1h"` | Robot account time to live. |
 
