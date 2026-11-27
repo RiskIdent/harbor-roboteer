@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/lestrrat-go/jwx/v4/jwa"
 	"github.com/lestrrat-go/jwx/v4/jwk"
@@ -29,20 +30,29 @@ func TestParseJWTSelectsIssuerKeySet(t *testing.T) {
 		name      string
 		key       jwk.Key
 		issuer    string
+		audience  []string
+		expired   bool
 		wantError bool
 	}{
-		{name: "first issuer", key: keyOne, issuer: issuerOne},
-		{name: "second issuer", key: keyTwo, issuer: issuerTwo},
-		{name: "claim cannot select another issuer key set", key: keyOne, issuer: issuerTwo, wantError: true},
-		{name: "unknown issuer", key: keyOne, issuer: "https://unknown.example.com", wantError: true},
+		{name: "first issuer", key: keyOne, issuer: issuerOne, audience: []string{audience}},
+		{name: "second issuer", key: keyTwo, issuer: issuerTwo, audience: []string{audience}},
+		{name: "wrong audience", key: keyOne, issuer: issuerOne, audience: []string{"other"}, wantError: true},
+		{name: "missing audience", key: keyOne, issuer: issuerOne, wantError: true},
+		{name: "expired", key: keyOne, issuer: issuerOne, audience: []string{audience}, expired: true, wantError: true},
+		{name: "claim cannot select another issuer key set", key: keyOne, issuer: issuerTwo, audience: []string{audience}, wantError: true},
+		{name: "unknown issuer", key: keyOne, issuer: "https://unknown.example.com", audience: []string{audience}, wantError: true},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			token, err := jwt.NewBuilder().
-				Issuer(test.issuer).
-				Audience([]string{audience}).
-				Build()
+			builder := jwt.NewBuilder().Issuer(test.issuer)
+			if test.audience != nil {
+				builder = builder.Audience(test.audience)
+			}
+			if test.expired {
+				builder = builder.Expiration(time.Now().Add(-time.Hour))
+			}
+			token, err := builder.Build()
 			if err != nil {
 				t.Fatal(err)
 			}
