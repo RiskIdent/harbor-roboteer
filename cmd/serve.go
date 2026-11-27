@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -31,7 +32,7 @@ type ServeOptions struct {
 	Config       string        `koanf:"config"`
 	Addr         string        `koanf:"addr"`
 	MetricsAddr  string        `koanf:"metrics-addr"`
-	OIDCIssuer   string        `koanf:"oidc-issuer"`
+	OIDCIssuers  []string      `koanf:"oidc-issuer"`
 	OIDCAudience string        `koanf:"oidc-audience"`
 	RobotTTL     time.Duration `koanf:"robot-ttl"`
 }
@@ -87,30 +88,36 @@ policy against their claims, and creates Harbor robot accounts.`,
 			return err
 		}
 
-		if err := (validation.Errors{
-			"oidc-issuer":   validation.Validate(opt.OIDCIssuer, validation.Required),
-			"oidc-audience": validation.Validate(opt.OIDCAudience, validation.Required),
-		}).Filter(); err != nil {
-			return fmt.Errorf("OIDC config: %w", err)
-		}
-		keys, err := jwks.New(ctx, opt.OIDCIssuer)
-		if err != nil {
+		if err := validateServeOptions(opt); err != nil {
 			return err
 		}
-		defer func() { _ = keys.Close(context.WithoutCancel(ctx)) }()
 
-		s, err := server.NewServer(ctx, server.ServerOptions{
-			Addr:     opt.Addr,
-			Log:      log,
-			Config:   cfg,
-			Harbor:   hc,
-			RobotTTL: opt.RobotTTL,
-			JWTOptions: []jwt.ParseOption{
+		jwtOptionsByIssuer := make(map[string][]jwt.ParseOption, len(opt.OIDCIssuers))
+		for _, issuer := range opt.OIDCIssuers {
+			if _, exists := jwtOptionsByIssuer[issuer]; exists {
+				continue
+			}
+			keys, err := jwks.New(ctx, issuer)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = keys.Close(context.WithoutCancel(ctx)) }()
+
+			jwtOptionsByIssuer[issuer] = []jwt.ParseOption{
 				jwt.WithKeySet(keys.Set),
-				jwt.WithIssuer(opt.OIDCIssuer),
+				jwt.WithIssuer(issuer),
 				jwt.WithAudience(opt.OIDCAudience),
 				jwt.WithAcceptableSkew(time.Minute),
-			},
+			}
+		}
+
+		s, err := server.NewServer(ctx, server.ServerOptions{
+			Addr:               opt.Addr,
+			Log:                log,
+			Config:             cfg,
+			Harbor:             hc,
+			RobotTTL:           opt.RobotTTL,
+			JWTOptionsByIssuer: jwtOptionsByIssuer,
 		})
 		if err != nil {
 			return err
@@ -144,7 +151,7 @@ func init() {
 	serveCmd.Flags().StringP("addr", "a", ServeDefaults.Addr, "server addr, env: $ROBOTEER_ADDR")
 	serveCmd.Flags().String("metrics-addr", ServeDefaults.MetricsAddr, "metrics server addr, env: $ROBOTEER_METRICS_ADDR")
 	addCommonFlags(serveCmd.Flags())
-	serveCmd.Flags().String("oidc-issuer", ServeDefaults.OIDCIssuer, "OIDC issuer URL, e.g. https://token.actions.githubusercontent.com, env: $ROBOTEER_OIDC_ISSUER")
+	serveCmd.Flags().StringSlice("oidc-issuer", ServeDefaults.OIDCIssuers, "OIDC issuer URL; repeat for multiple issuers or use comma-separated values, env: $ROBOTEER_OIDC_ISSUER")
 	serveCmd.Flags().String("oidc-audience", ServeDefaults.OIDCAudience, "required token audience, e.g. harbor-roboteer, env: $ROBOTEER_OIDC_AUDIENCE")
 	serveCmd.Flags().Duration("robot-ttl", ServeDefaults.RobotTTL, "early expiry duration for robot accounts, env: $ROBOTEER_ROBOT_TTL")
 }
@@ -154,7 +161,26 @@ func LoadServeOptions(flags *pflag.FlagSet) (*ServeOptions, error) {
 	if err := LoadOptions(flags, &o); err != nil {
 		return nil, err
 	}
+	for i := range o.OIDCIssuers {
+		o.OIDCIssuers[i] = strings.TrimSpace(o.OIDCIssuers[i])
+	}
+	o.OIDCIssuers = slices.DeleteFunc(o.OIDCIssuers, func(issuer string) bool {
+		return issuer == ""
+	})
 	return &o, nil
+}
+
+func validateServeOptions(opt *ServeOptions) error {
+	if err := (validation.Errors{
+		"oidc-issuer": validation.Validate(opt.OIDCIssuers,
+			validation.Required,
+			validation.Each(validation.Required),
+		),
+		"oidc-audience": validation.Validate(opt.OIDCAudience, validation.Required),
+	}).Filter(); err != nil {
+		return fmt.Errorf("OIDC config: %w", err)
+	}
+	return nil
 }
 
 func isOtherSubcommandFlag(name string) bool {
@@ -194,6 +220,7 @@ func LoadOptions(flags *pflag.FlagSet, cfgPtr any) error {
 		DecoderConfig: &mapstructure.DecoderConfig{
 			DecodeHook: mapstructure.ComposeDecodeHookFunc(
 				mapstructure.StringToTimeDurationHookFunc(),
+				mapstructure.StringToSliceHookFunc(","),
 				mapstructure.StringToURLHookFunc(),
 			),
 			ErrorUnused:      true, // error when user gives env vars we don't support

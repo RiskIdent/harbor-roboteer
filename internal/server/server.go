@@ -31,12 +31,12 @@ type Server struct {
 }
 
 type ServerOptions struct {
-	Addr       string
-	Log        *slog.Logger
-	Harbor     harborClient
-	Config     *config.Config
-	JWTOptions []jwt.ParseOption // key set, issuer and audience to verify caller tokens
-	RobotTTL   time.Duration
+	Addr               string
+	Log                *slog.Logger
+	Harbor             harborClient
+	Config             *config.Config
+	JWTOptionsByIssuer map[string][]jwt.ParseOption
+	RobotTTL           time.Duration
 }
 
 type harborClient interface {

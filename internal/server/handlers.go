@@ -72,9 +72,31 @@ func (s *Server) registerV1() {
 	r.HandleFunc("GET "+apiV1Prefix+"/health", s.health)
 }
 
+func (s *Server) parseJWT(r *http.Request) (jwt.Token, error) {
+	if len(s.JWTOptionsByIssuer) == 0 {
+		return nil, errors.New("no OIDC issuers configured")
+	}
+
+	// This parse only selects the issuer's verification options. The token is
+	// parsed and fully validated again below before any of its claims are used.
+	unverified, err := jwt.ParseRequest(r, jwt.WithVerify(false), jwt.WithValidate(false))
+	if err != nil {
+		return nil, err
+	}
+	issuer, ok := unverified.Issuer()
+	if !ok {
+		return nil, errors.New("token has no issuer")
+	}
+	options, ok := s.JWTOptionsByIssuer[issuer]
+	if !ok {
+		return nil, fmt.Errorf("token has unknown issuer %q", issuer)
+	}
+	return jwt.ParseRequest(r, options...)
+}
+
 func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tok, err := jwt.ParseRequest(r, s.JWTOptions...)
+	tok, err := s.parseJWT(r)
 	if err != nil {
 		s.Log.ErrorContext(ctx, "reject token", slog.Any("error", err))
 		w.Header().Set("WWW-Authenticate", "Bearer")
@@ -91,6 +113,7 @@ func (s *Server) postRobot(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusBadRequest, "body must be valid JSON")
 		return
 	}
+
 	var req postRobotRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		writeProblem(w, http.StatusBadRequest, "body must be valid JSON")

@@ -211,15 +211,22 @@
           ]
         },
         "oidc-issuer": {
-          "description": "OIDC issuer URL.",
+          "description": "(string or string[]) OIDC issuer URL or list of issuer URLs.",
           "examples": [
             "https://token.actions.githubusercontent.com",
-            "https://github-enterprise.example.com/_services/token"
+            [
+              "https://token.actions.githubusercontent.com",
+              "https://github-enterprise.example.com/_services/token"
+            ]
           ],
           "type": [
             "string",
+            "array",
             "null"
-          ]
+          ],
+          "items": {
+            "type": "string"
+          }
         },
         "robot-ttl": {
           "description": "Robot account time to live.",

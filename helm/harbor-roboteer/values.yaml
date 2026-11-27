@@ -325,9 +325,9 @@ flags:
   # -- OIDC audience.
   # @section -- Config
   oidc-audience: harbor-roboteer # @schema nullable; default: harbor-roboteer
-  # -- OIDC issuer URL.
+  # -- (string or string[]) OIDC issuer URL or list of issuer URLs.
   # @section -- Config
-  oidc-issuer: "" # @schema nullable; examples:[https://token.actions.githubusercontent.com, https://github-enterprise.example.com/_services/token]
+  oidc-issuer: [] # @schema nullable; type:[string, array]; item: string; examples:[https://token.actions.githubusercontent.com, [https://token.actions.githubusercontent.com, https://github-enterprise.example.com/_services/token]]
   # -- Robot account time to live.
   # @section -- Config
   robot-ttl: 1h # @schema nullable; default: 1h
