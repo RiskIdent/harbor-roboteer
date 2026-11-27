@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -42,6 +43,53 @@ func TestLoadServeOptionsRobotTTL(t *testing.T) {
 			}
 			if options.RobotTTL != test.want {
 				t.Errorf("RobotTTL = %v, want %v", options.RobotTTL, test.want)
+			}
+		})
+	}
+}
+
+func TestLoadServeOptionsOIDCCABundles(t *testing.T) {
+	tests := []struct {
+		name string
+		env  string
+		args []string
+		want []string
+	}{
+		{
+			name: "no bundles",
+			want: []string{},
+		},
+		{
+			name: "environment",
+			env:  "/certs/one.pem, ,/certs/*.pem,",
+			want: []string{"/certs/one.pem", "/certs/*.pem"},
+		},
+		{
+			name: "repeated flags override environment",
+			env:  "/certs/environment.pem",
+			args: []string{
+				"--oidc-ca-bundle=/certs/one.pem",
+				"--oidc-ca-bundle=/certs/*.pem",
+			},
+			want: []string{"/certs/one.pem", "/certs/*.pem"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("ROBOTEER_OIDC_CA_BUNDLE", test.env)
+			flags := pflag.NewFlagSet("serve", pflag.ContinueOnError)
+			flags.StringSlice("oidc-ca-bundle", ServeDefaults.OIDCCABundles, "")
+			if err := flags.Parse(test.args); err != nil {
+				t.Fatal(err)
+			}
+
+			options, err := LoadServeOptions(flags)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(options.OIDCCABundles, test.want) {
+				t.Errorf("OIDCCABundles = %v, want %v", options.OIDCCABundles, test.want)
 			}
 		})
 	}

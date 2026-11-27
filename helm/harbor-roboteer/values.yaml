@@ -328,6 +328,9 @@ flags:
   # -- OIDC issuer URL.
   # @section -- Config
   oidc-issuer: "" # @schema nullable; examples:[https://token.actions.githubusercontent.com, https://github-enterprise.example.com/_services/token]
+  # -- PEM-encoded CA certificate bundle paths or globs.
+  # @section -- Config
+  oidc-ca-bundle: [] # @schema item: string
   # -- Robot account time to live.
   # @section -- Config
   robot-ttl: 1h # @schema nullable; default: 1h

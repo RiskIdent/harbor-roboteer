@@ -28,8 +28,31 @@ func (k *Keys) Close(ctx context.Context) error {
 	return k.cache.Shutdown(ctx)
 }
 
+type Option func(*options)
+
+type options struct {
+	httpClient *http.Client
+}
+
+func newOptions(opts []Option) options {
+	options := options{httpClient: http.DefaultClient}
+	for _, opt := range opts {
+		opt(&options)
+	}
+	if options.httpClient == nil {
+		options.httpClient = http.DefaultClient
+	}
+	return options
+}
+
+func WithHTTPClient(client *http.Client) Option {
+	return func(options *options) {
+		options.httpClient = client
+	}
+}
+
 // discover reads the issuer's OpenID configuration and returns its JWKS URL.
-func discover(ctx context.Context, issuer string) (string, error) {
+func discover(ctx context.Context, issuer string, client *http.Client) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, firstFetchTimeout)
 	defer cancel()
 
@@ -38,17 +61,17 @@ func discover(ctx context.Context, issuer string) (string, error) {
 		return "", fmt.Errorf("discover: issuer %q: %w", issuer, err)
 	}
 	return retry.DefaultBackoff.DoValues(ctx, func(ctx context.Context) (string, error) {
-		return fetchJWKSURL(ctx, issuer, u)
+		return fetchJWKSURL(ctx, issuer, u, client)
 	})
 }
 
 // fetchJWKSURL reads the OpenID configuration at u, marking failures worth trying again with [retry.Again].
-func fetchJWKSURL(ctx context.Context, issuer, u string) (string, error) {
+func fetchJWKSURL(ctx context.Context, issuer, u string, client *http.Client) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return "", fmt.Errorf("discover %s: %w", u, err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", retry.Again(fmt.Errorf("discover %s: %w", u, err))
 	}
@@ -102,13 +125,15 @@ func isTransientStatus(code int) bool {
 
 // New discovers the issuer's JWKS URL and keeps its key set fresh until stop is called.
 // It fails if discovery or the first key fetch fails, so a bad issuer stops startup.
-func New(ctx context.Context, issuer string) (*Keys, error) {
-	jwksURL, err := discover(ctx, issuer)
+func New(ctx context.Context, issuer string, opts ...Option) (*Keys, error) {
+	options := newOptions(opts)
+
+	jwksURL, err := discover(ctx, issuer, options.httpClient)
 	if err != nil {
 		return nil, err
 	}
 
-	cache, err := jwkfetch.NewCache(ctx, httprc.NewClient())
+	cache, err := jwkfetch.NewCache(ctx, httprc.NewClient(httprc.WithHTTPClient(options.httpClient)))
 	if err != nil {
 		return nil, fmt.Errorf("start jwks cache: %w", err)
 	}

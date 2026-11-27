@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,12 +29,13 @@ import (
 type ServeOptions struct {
 	CommonOptions `koanf:",squash"`
 
-	Config       string        `koanf:"config"`
-	Addr         string        `koanf:"addr"`
-	MetricsAddr  string        `koanf:"metrics-addr"`
-	OIDCIssuer   string        `koanf:"oidc-issuer"`
-	OIDCAudience string        `koanf:"oidc-audience"`
-	RobotTTL     time.Duration `koanf:"robot-ttl"`
+	Config        string        `koanf:"config"`
+	Addr          string        `koanf:"addr"`
+	MetricsAddr   string        `koanf:"metrics-addr"`
+	OIDCIssuer    string        `koanf:"oidc-issuer"`
+	OIDCCABundles []string      `koanf:"oidc-ca-bundle"`
+	OIDCAudience  string        `koanf:"oidc-audience"`
+	RobotTTL      time.Duration `koanf:"robot-ttl"`
 }
 
 var ServeDefaults = ServeOptions{
@@ -93,7 +95,11 @@ policy against their claims, and creates Harbor robot accounts.`,
 		}).Filter(); err != nil {
 			return fmt.Errorf("OIDC config: %w", err)
 		}
-		keys, err := jwks.New(ctx, opt.OIDCIssuer)
+		httpClient, err := jwks.NewHTTPClientWithCertBundles(opt.OIDCCABundles)
+		if err != nil {
+			return err
+		}
+		keys, err := jwks.New(ctx, opt.OIDCIssuer, jwks.WithHTTPClient(httpClient))
 		if err != nil {
 			return err
 		}
@@ -145,6 +151,7 @@ func init() {
 	serveCmd.Flags().String("metrics-addr", ServeDefaults.MetricsAddr, "metrics server addr, env: $ROBOTEER_METRICS_ADDR")
 	addCommonFlags(serveCmd.Flags())
 	serveCmd.Flags().String("oidc-issuer", ServeDefaults.OIDCIssuer, "OIDC issuer URL, e.g. https://token.actions.githubusercontent.com, env: $ROBOTEER_OIDC_ISSUER")
+	serveCmd.Flags().StringSlice("oidc-ca-bundle", ServeDefaults.OIDCCABundles, "PEM-encoded CA certificate bundle path or glob; repeat for multiple bundles, env: $ROBOTEER_OIDC_CA_BUNDLE")
 	serveCmd.Flags().String("oidc-audience", ServeDefaults.OIDCAudience, "required token audience, e.g. harbor-roboteer, env: $ROBOTEER_OIDC_AUDIENCE")
 	serveCmd.Flags().Duration("robot-ttl", ServeDefaults.RobotTTL, "early expiry duration for robot accounts, env: $ROBOTEER_ROBOT_TTL")
 }
@@ -154,6 +161,12 @@ func LoadServeOptions(flags *pflag.FlagSet) (*ServeOptions, error) {
 	if err := LoadOptions(flags, &o); err != nil {
 		return nil, err
 	}
+	for i := range o.OIDCCABundles {
+		o.OIDCCABundles[i] = strings.TrimSpace(o.OIDCCABundles[i])
+	}
+	o.OIDCCABundles = slices.DeleteFunc(o.OIDCCABundles, func(pattern string) bool {
+		return pattern == ""
+	})
 	return &o, nil
 }
 
@@ -194,6 +207,7 @@ func LoadOptions(flags *pflag.FlagSet, cfgPtr any) error {
 		DecoderConfig: &mapstructure.DecoderConfig{
 			DecodeHook: mapstructure.ComposeDecodeHookFunc(
 				mapstructure.StringToTimeDurationHookFunc(),
+				mapstructure.StringToSliceHookFunc(","),
 				mapstructure.StringToURLHookFunc(),
 			),
 			ErrorUnused:      true, // error when user gives env vars we don't support

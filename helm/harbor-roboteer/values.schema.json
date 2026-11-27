@@ -210,6 +210,13 @@
             "null"
           ]
         },
+        "oidc-ca-bundle": {
+          "description": "PEM-encoded CA certificate bundle paths or globs.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "oidc-issuer": {
           "description": "OIDC issuer URL.",
           "examples": [
