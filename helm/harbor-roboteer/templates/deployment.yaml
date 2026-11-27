@@ -60,19 +60,15 @@ spec:
             - --metrics-addr=:{{ .Values.metrics.port }}
             {{- end }}
             - --config=/etc/harbor-roboteer/roboteer.jsonnet
-            {{- range $flag := list "log-level" "log-format" "harbor-url" "harbor-username" "oidc-audience" "robot-ttl" }}
+            {{- range $flag := list "log-level" "log-format" "harbor-url" "harbor-username" "oidc-audience" "oidc-issuer" "robot-ttl" }}
             {{- with get $.Values.flags $flag }}
-            - --{{ $flag }}={{ . }}
-            {{- end }}
-            {{- end }}
-            {{- with get .Values.flags "oidc-issuer" }}
-            {{- /* A string remains supported for backwards compatibility with older values files. */}}
             {{- if kindIs "slice" . }}
             {{- range . }}
-            - --oidc-issuer={{ . }}
+            - {{ printf "--%s=%s" $flag . | quote }}
             {{- end }}
             {{- else }}
-            - --oidc-issuer={{ . }}
+            - --{{ $flag }}={{ . }}
+            {{- end }}
             {{- end }}
             {{- end }}
             {{- with .Values.args }}
