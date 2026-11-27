@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -44,6 +45,56 @@ func TestLoadServeOptionsRobotTTL(t *testing.T) {
 				t.Errorf("RobotTTL = %v, want %v", options.RobotTTL, test.want)
 			}
 		})
+	}
+}
+
+func TestLoadServeOptionsOIDCIssuers(t *testing.T) {
+	tests := []struct {
+		name string
+		env  string
+		args []string
+		want []string
+	}{
+		{
+			name: "environment",
+			env:  "https://issuer-one.example.com, ,https://issuer-two.example.com,",
+			want: []string{"https://issuer-one.example.com", "https://issuer-two.example.com"},
+		},
+		{
+			name: "repeated flags override environment",
+			env:  "https://issuer-env.example.com",
+			args: []string{
+				"--oidc-issuer=https://issuer-one.example.com",
+				"--oidc-issuer=https://issuer-two.example.com",
+			},
+			want: []string{"https://issuer-one.example.com", "https://issuer-two.example.com"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("ROBOTEER_OIDC_ISSUER", test.env)
+			flags := pflag.NewFlagSet("serve", pflag.ContinueOnError)
+			flags.StringSlice("oidc-issuer", ServeDefaults.OIDCIssuers, "")
+			if err := flags.Parse(test.args); err != nil {
+				t.Fatal(err)
+			}
+
+			options, err := LoadServeOptions(flags)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(options.OIDCIssuers, test.want) {
+				t.Errorf("OIDCIssuers = %v, want %v", options.OIDCIssuers, test.want)
+			}
+		})
+	}
+}
+
+func TestServeOptionsRequireOIDCIssuer(t *testing.T) {
+	err := validateServeOptions(&ServeOptions{OIDCAudience: ServeDefaults.OIDCAudience})
+	if err == nil {
+		t.Fatal("want error when no OIDC issuer is configured")
 	}
 }
 

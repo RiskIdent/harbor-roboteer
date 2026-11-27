@@ -349,8 +349,14 @@ and add a filter for `v*` tags.
 ### Using roboteer's API manually
 
 Configure `harbor-roboteer` to trust your OIDC issuer via the
-`--oidc-issuer` flag or `ROBOTEER_OIDC_ISSUER` environment variable.
-E.g: `--oidc-issuer=https://token.actions.githubusercontent.com`
+`--oidc-issuer` flag or `ROBOTEER_OIDC_ISSUER` environment variable. Repeat
+the flag or use comma-separated environment variable values to support multiple
+issuers. E.g:
+
+```console
+--oidc-issuer=https://token.actions.githubusercontent.com \
+--oidc-issuer=https://kubernetes.example.com
+```
 
 Request an OIDC token whose `aud` includes `harbor-roboteer` (the default).
 If you use a different audience, configure the server to match it via
